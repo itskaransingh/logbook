@@ -1,7 +1,7 @@
 /**
- * Admin dashboard: every employee with live status, hours today, and
- * weekly totals. Admin accounts never appear here (enforced by RLS and
- * the role filter).
+ * Admin dashboard: every team member (employees and other admins) with
+ * live status, hours today, and weekly totals. The signed-in admin's own
+ * row is excluded — their day lives on the Today tab.
  */
 
 import React from "react";
@@ -29,7 +29,7 @@ export default function AdminDashboard() {
           </TouchableOpacity>
         </View>
         <Text className="text-gray-500 mb-6">
-          {employees.length} employees · {working} working now
+          {employees.length} team members · {working} working now
         </Text>
 
         {error && (
@@ -41,7 +41,7 @@ export default function AdminDashboard() {
         {!loading && employees.length === 0 && (
           <View className="bg-white rounded-2xl border border-gray-100 p-8">
             <Text className="text-gray-400 text-center">
-              No employees yet. Use "+ Add Employee" to create the first
+              No team members yet. Use "+ Add Employee" to create the first
               account and share the credentials.
             </Text>
           </View>

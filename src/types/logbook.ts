@@ -1,6 +1,7 @@
 /**
  * Row types and unions for the Logbook schema.
- * Mirrors supabase/migrations/20260610000001_logbook_schema.sql.
+ * Mirrors supabase/migrations/20260610000001_logbook_schema.sql and
+ * 20260610000002_admin_visibility_and_planned_tasks.sql.
  */
 
 export type Role = "admin" | "employee";
@@ -69,6 +70,8 @@ export interface Task {
   description: string | null;
   priority: TaskPriority;
   status: TaskStatus;
+  /** Local work date (YYYY-MM-DD) the task is planned for. */
+  planned_for: string;
   completed_at: string | null;
   created_at: string;
   updated_at: string;

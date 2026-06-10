@@ -1,6 +1,7 @@
 /**
- * Admin employee detail: pick a day, see the session summary, hourly
- * timeline (read-only), and the employee's task list with an assign form.
+ * Admin team-member detail (employees and other admins): pick a day, see
+ * the session summary, hourly timeline (read-only), and the member's task
+ * list with an assign form.
  */
 
 import React, { useCallback, useState } from "react";
@@ -71,7 +72,7 @@ export default function EmployeeDetail() {
   return (
     <ScrollView className="flex-1 bg-gray-50">
       <Stack.Screen
-        options={{ title: employee?.full_name || "Employee" }}
+        options={{ title: employee?.full_name || "Team member" }}
       />
       <View className="px-4 py-6 max-w-2xl w-full self-center">
         {/* Date pager */}

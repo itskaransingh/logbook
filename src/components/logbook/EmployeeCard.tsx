@@ -1,6 +1,7 @@
 /**
- * Admin dashboard row: employee name, live status chip, hours today and
- * this week. Tapping opens the employee detail screen.
+ * Admin dashboard row: team member name (with an Admin pill for admin
+ * accounts), live status chip, hours today and this week. Tapping opens
+ * the member detail screen.
  */
 
 import React from "react";
@@ -30,9 +31,16 @@ export default function EmployeeCard({ employee, onPress }: EmployeeCardProps) {
       onPress={onPress}
     >
       <View className="flex-row items-center justify-between mb-2">
-        <Text className="text-lg font-semibold text-gray-900">
-          {profile.full_name || profile.username || "Unnamed"}
-        </Text>
+        <View className="flex-row items-center gap-2 flex-1 pr-2">
+          <Text className="text-lg font-semibold text-gray-900">
+            {profile.full_name || profile.username || "Unnamed"}
+          </Text>
+          {profile.role === "admin" && (
+            <View className="rounded-full px-2 py-0.5 bg-indigo-100">
+              <Text className="text-xs font-medium text-indigo-700">Admin</Text>
+            </View>
+          )}
+        </View>
         <View className={`rounded-full px-3 py-1 ${chip.classes}`}>
           <Text className={`text-sm font-medium ${chip.classes}`}>
             {chip.label}
