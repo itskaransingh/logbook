@@ -1,7 +1,9 @@
 /**
- * @fileoverview Tasks screen — today's task list.
+ * @fileoverview Tasks screen — today's task list plus tomorrow's plan.
  * Unfinished tasks carry over automatically (computed at read time);
- * tasks assigned by an admin and carried-over tasks get badges.
+ * tasks assigned by an admin and carried-over tasks get badges. The plan
+ * of action for tomorrow (from clock-out or the Tomorrow toggle) can be
+ * reviewed and changed here at any time.
  */
 
 import React, { useMemo, useState } from "react";
@@ -30,7 +32,7 @@ const Section = ({ title, tasks, children }: {
 };
 
 export default function TasksScreen() {
-  const { tasks, loading, error, createTask, setStatus, deleteTask } =
+  const { tasks, upcoming, loading, error, createTask, setStatus, deleteTask } =
     useTasks();
   const [showForm, setShowForm] = useState(false);
 
@@ -63,6 +65,7 @@ export default function TasksScreen() {
         {showForm && (
           <View className="mb-5">
             <TaskForm
+              showPlanDate
               onSubmit={async (input) => {
                 const err = await createTask(input);
                 if (!err) setShowForm(false);
@@ -78,7 +81,7 @@ export default function TasksScreen() {
           </View>
         )}
 
-        {!loading && tasks.length === 0 && (
+        {!loading && tasks.length === 0 && upcoming.length === 0 && (
           <View className="bg-white rounded-2xl border border-gray-100 p-8">
             <Text className="text-gray-400 text-center">
               No tasks yet. Add one to plan your day — unfinished tasks roll
@@ -99,6 +102,9 @@ export default function TasksScreen() {
         </Section>
         <Section title="Done Today" tasks={sections.done}>
           {(t) => <TaskItem task={t} onSetStatus={setStatus} />}
+        </Section>
+        <Section title="Tomorrow's Plan" tasks={upcoming}>
+          {(t) => <TaskItem task={t} onDelete={deleteTask} />}
         </Section>
       </View>
     </ScrollView>

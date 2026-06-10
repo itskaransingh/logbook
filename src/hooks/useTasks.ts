@@ -1,9 +1,9 @@
 /**
- * "Today's tasks" for a user (defaults to the signed-in user; admins pass
- * a team member's id). Carry-over is computed at read time: anything not
- * done and planned for today or earlier is in the list, plus whatever was
- * completed today. A task whose planned_for is before today is "carried
- * over"; tasks planned for tomorrow stay hidden until then.
+ * Tasks for a user (defaults to the signed-in user; admins pass a team
+ * member's id), split by planned_for: `tasks` is today's list — anything
+ * not done and planned for today or earlier, plus whatever was completed
+ * today — and `upcoming` is the plan for tomorrow (and beyond). A task
+ * whose planned_for is before today is "carried over".
  */
 
 import { useCallback, useState } from "react";
@@ -26,6 +26,7 @@ export function useTasks(userId?: string) {
   const targetUser = userId ?? session?.user.id;
 
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [upcoming, setUpcoming] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,16 +36,17 @@ export function useTasks(userId?: string) {
       .from("tasks")
       .select("*")
       .eq("user_id", targetUser)
-      .lte("planned_for", localWorkDate())
       .or(`status.neq.done,completed_at.gte.${startOfLocalDayISO()}`)
       .order("created_at", { ascending: true });
     if (error) {
       setError(error.message);
     } else {
+      const today = localWorkDate();
       const sorted = ((data as Task[]) ?? []).sort(
         (a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
       );
-      setTasks(sorted);
+      setTasks(sorted.filter((t) => t.planned_for <= today));
+      setUpcoming(sorted.filter((t) => t.planned_for > today));
       setError(null);
     }
     setLoading(false);
@@ -102,5 +104,14 @@ export function useTasks(userId?: string) {
     [refresh]
   );
 
-  return { tasks, loading, error, refresh, createTask, setStatus, deleteTask };
+  return {
+    tasks,
+    upcoming,
+    loading,
+    error,
+    refresh,
+    createTask,
+    setStatus,
+    deleteTask,
+  };
 }

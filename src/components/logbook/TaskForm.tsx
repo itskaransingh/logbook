@@ -1,30 +1,39 @@
 /**
- * Inline create-task form: title, optional description, priority picker.
- * Used by the employee Tasks screen and the admin "Assign task" flow.
+ * Inline create-task form: title, optional description, priority picker,
+ * and (when enabled) a Today/Tomorrow toggle for planning ahead. Used by
+ * the employee Tasks screen and the admin "Assign task" flow.
  */
 
 import React, { useState } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { TaskPriority } from "../../types/logbook";
+import { workDateOffset } from "../../lib/dates";
 
 const PRIORITIES: TaskPriority[] = ["high", "medium", "low"];
+const PLAN_DAYS = ["today", "tomorrow"] as const;
+type PlanDay = (typeof PLAN_DAYS)[number];
 
 interface TaskFormProps {
   submitLabel?: string;
+  /** Show the Today/Tomorrow toggle (defaults to today-only). */
+  showPlanDate?: boolean;
   onSubmit: (input: {
     title: string;
     description?: string;
     priority: TaskPriority;
+    plannedFor?: string;
   }) => Promise<string | null>;
 }
 
 export default function TaskForm({
   submitLabel = "Add Task",
+  showPlanDate = false,
   onSubmit,
 }: TaskFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [planDay, setPlanDay] = useState<PlanDay>("today");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +44,12 @@ export default function TaskForm({
     }
     setSaving(true);
     setError(null);
-    const err = await onSubmit({ title, description, priority });
+    const err = await onSubmit({
+      title,
+      description,
+      priority,
+      plannedFor: planDay === "tomorrow" ? workDateOffset(1) : undefined,
+    });
     setSaving(false);
     if (err) {
       setError(err);
@@ -43,6 +57,7 @@ export default function TaskForm({
       setTitle("");
       setDescription("");
       setPriority("medium");
+      setPlanDay("today");
     }
   };
 
@@ -84,6 +99,29 @@ export default function TaskForm({
           </TouchableOpacity>
         ))}
       </View>
+      {showPlanDate && (
+        <View className="flex-row gap-2 mb-3">
+          {PLAN_DAYS.map((day) => (
+            <TouchableOpacity
+              key={day}
+              className={`flex-1 rounded-lg py-2 border ${
+                planDay === day
+                  ? "bg-gray-800 border-gray-800"
+                  : "bg-white border-gray-300"
+              }`}
+              onPress={() => setPlanDay(day)}
+            >
+              <Text
+                className={`text-center text-sm font-medium capitalize ${
+                  planDay === day ? "text-white" : "text-gray-600"
+                }`}
+              >
+                {day}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
       {error && <Text className="text-red-600 text-sm mb-3">{error}</Text>}
       <TouchableOpacity
         className={`rounded-lg py-3 ${

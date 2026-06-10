@@ -31,7 +31,7 @@ export default function EmployeeDetail() {
   const [showAssign, setShowAssign] = useState(false);
 
   const { updates } = useHourlyUpdates(id, workDate);
-  const { tasks, createTask, setStatus } = useTasks(id);
+  const { tasks, upcoming, createTask, setStatus } = useTasks(id);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -180,6 +180,7 @@ export default function EmployeeDetail() {
             <View className="mb-4">
               <TaskForm
                 submitLabel="Assign Task"
+                showPlanDate
                 onSubmit={async (input) => {
                   const err = await createTask(input);
                   if (!err) setShowAssign(false);
@@ -195,6 +196,17 @@ export default function EmployeeDetail() {
             ))
           ) : (
             <Text className="text-gray-400">No open tasks</Text>
+          )}
+
+          {upcoming.length > 0 && (
+            <View className="mt-5">
+              <Text className="text-sm font-semibold text-gray-500 uppercase mb-2">
+                Tomorrow's Plan ({upcoming.length})
+              </Text>
+              {upcoming.map((t) => (
+                <TaskItem key={t.id} task={t} />
+              ))}
+            </View>
           )}
         </View>
       </View>
