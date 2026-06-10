@@ -1,15 +1,12 @@
 /**
- * @fileoverview Authentication Screen
- * Provides user authentication functionality including sign in and sign up flows.
- * Features form validation, loading states, and seamless toggle between auth modes.
- *
- * @author Your Name
- * @version 1.0.0
+ * @fileoverview Sign-in screen
+ * Logbook has no public signup: accounts are created by admins, so this
+ * screen only signs in with provided credentials. Errors render inline
+ * (Alert.alert is a no-op on web, our primary platform).
  */
 
 import React, { useState } from "react";
 import {
-  Alert,
   View,
   TextInput,
   Text,
@@ -21,82 +18,31 @@ import {
 import { supabase } from "../../../lib/supabase";
 import { Stack } from "expo-router";
 
-/**
- * Authentication component with sign in and sign up functionality
- * Provides a professional card-based layout with form validation
- *
- * @component
- * @returns {JSX.Element} The authentication screen
- *
- * @example
- * // Used in Expo Router for unauthenticated users
- * <Auth />
- */
-export default function Auth() {
-  /** User's email address */
+export default function SignIn() {
   const [email, setEmail] = useState("");
-
-  /** User's password */
   const [password, setPassword] = useState("");
-
-  /** Loading state during authentication */
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  /** Toggle between sign in and sign up modes */
-  const [isSignUp, setIsSignUp] = useState(false);
-
-  /**
-   * Handles user sign in with email and password
-   * Validates input fields and manages loading state
-   *
-   * @async
-   * @function signInWithEmail
-   * @throws {Error} When authentication fails
-   */
   async function signInWithEmail() {
     if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
+      setError("Please fill in all fields");
       return;
     }
 
     setLoading(true);
+    setError(null);
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     });
 
     if (error) {
-      Alert.alert("Sign In Error", error.message);
-    }
-    setLoading(false);
-  }
-
-  /**
-   * Handles user sign up with email and password
-   * Validates input fields including password length requirements
-   *
-   * @async
-   * @function signUpWithEmail
-   * @throws {Error} When sign up fails or validation errors occur
-   */
-  async function signUpWithEmail() {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters");
-      return;
-    }
-
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
-
-    if (error) {
-      Alert.alert("Sign Up Error", error.message);
-    } else {
-      Alert.alert("Success", "Check your email for verification link!");
+      setError(
+        error.message === "Invalid login credentials"
+          ? "Invalid email or password"
+          : error.message
+      );
     }
     setLoading(false);
   }
@@ -107,31 +53,26 @@ export default function Auth() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
-        <Stack.Screen options={{ title: "Welcome" }} />
+        <Stack.Screen options={{ title: "Logbook" }} />
 
-        {/* Header Section */}
         <View className="flex-1 justify-center px-6 py-12">
           <View className="items-center mb-12">
             <View className="bg-blue-100 rounded-full p-6 mb-6">
-              <Text className="text-4xl">🚀</Text>
+              <Text className="text-4xl">📒</Text>
             </View>
             <Text className="text-3xl font-bold text-gray-900 mb-2 text-center">
-              Welcome to the App
+              Logbook
             </Text>
             <Text className="text-gray-600 text-center leading-6">
-              {isSignUp
-                ? "Create your account to get started with AI-powered features"
-                : "Sign in to access your AI assistant and more"}
+              Sign in with the credentials your admin gave you
             </Text>
           </View>
 
-          {/* Form Card */}
           <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
             <Text className="text-xl font-semibold text-gray-900 mb-6 text-center">
-              {isSignUp ? "Create Account" : "Sign In"}
+              Sign In
             </Text>
 
-            {/* Email Input */}
             <View className="mb-4">
               <Text className="text-base font-medium text-gray-700 mb-2">
                 Email Address
@@ -148,7 +89,6 @@ export default function Auth() {
               />
             </View>
 
-            {/* Password Input */}
             <View className="mb-6">
               <Text className="text-base font-medium text-gray-700 mb-2">
                 Password
@@ -158,27 +98,28 @@ export default function Auth() {
                 onChangeText={setPassword}
                 value={password}
                 secureTextEntry={true}
-                placeholder={
-                  isSignUp ? "Minimum 6 characters" : "Enter your password"
-                }
+                placeholder="Enter your password"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="none"
+                onSubmitEditing={signInWithEmail}
               />
-              {isSignUp && (
-                <Text className="text-sm text-gray-500 mt-1">
-                  Password must be at least 6 characters long
-                </Text>
-              )}
             </View>
 
-            {/* Submit Button */}
+            {error && (
+              <View className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                <Text className="text-red-700 text-sm text-center">
+                  {error}
+                </Text>
+              </View>
+            )}
+
             <TouchableOpacity
-              className={`rounded-lg py-4 px-6 mb-4 ${
+              className={`rounded-lg py-4 px-6 ${
                 loading || !email || !password
                   ? "bg-gray-300"
                   : "bg-blue-600 active:bg-blue-700"
               }`}
-              onPress={isSignUp ? signUpWithEmail : signInWithEmail}
+              onPress={signInWithEmail}
               disabled={loading || !email || !password}
             >
               <Text
@@ -188,35 +129,14 @@ export default function Auth() {
                     : "text-white"
                 }`}
               >
-                {loading
-                  ? "⏳ Please wait..."
-                  : isSignUp
-                  ? "🎉 Create Account"
-                  : "🔑 Sign In"}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Toggle Auth Mode */}
-            <TouchableOpacity
-              className="py-3"
-              onPress={() => setIsSignUp(!isSignUp)}
-              disabled={loading}
-            >
-              <Text className="text-center text-blue-600 font-medium">
-                {isSignUp
-                  ? "Already have an account? Sign In"
-                  : "Don't have an account? Sign Up"}
+                {loading ? "Signing in..." : "Sign In"}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Features Preview */}
           <View className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-            <Text className="text-blue-800 font-medium mb-2 text-center">
-              ✨ What's Inside
-            </Text>
             <Text className="text-blue-700 text-sm text-center leading-5">
-              AI Assistant • Secure Authentication • Profile Management
+              Need an account? Ask one of the founders to create one for you.
             </Text>
           </View>
         </View>

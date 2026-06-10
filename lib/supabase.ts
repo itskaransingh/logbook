@@ -8,6 +8,7 @@
  */
 
 import "react-native-url-polyfill/auto";
+import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 
@@ -35,7 +36,10 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
  */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    // AsyncStorage breaks server-side rendering on web (it touches
+    // `window` at import time); supabase-js's default storage handles
+    // the browser and SSR cases itself.
+    ...(Platform.OS !== "web" && { storage: AsyncStorage }),
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

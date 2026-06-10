@@ -1,112 +1,93 @@
 /**
  * @fileoverview Session Context Provider
- * Manages user authentication state across the application using React Context.
- * Provides session data and loading states to all child components.
- *
- * @author Your Name
- * @version 1.0.0
+ * Manages authentication state plus the signed-in user's Logbook profile
+ * (including role), so the router and screens can gate on admin/employee.
  */
 
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { supabase } from "../lib/supabase";
 import { Session } from "@supabase/supabase-js";
+import { Profile } from "../src/types/logbook";
 
-/**
- * Session context interface
- * @interface SessionContextType
- */
 interface SessionContextType {
   /** Current user session or null if not authenticated */
   session: Session | null;
-  /** Loading state while session is being determined */
+  /** The signed-in user's profile row (null while signed out) */
+  profile: Profile | null;
+  /** Convenience flag for role gating */
+  isAdmin: boolean;
+  /** Loading until both session and profile have resolved */
   loading: boolean;
 }
 
-/**
- * React context for session management
- * Provides session state to all components in the app
- */
 const SessionContext = createContext<SessionContextType>({
   session: null,
+  profile: null,
+  isAdmin: false,
   loading: true,
 });
 
-/**
- * Session provider component that wraps the app
- * Manages authentication state and provides it to child components
- *
- * @component
- * @param {Object} props - Component props
- * @param {React.ReactNode} props.children - Child components to wrap
- * @returns {JSX.Element} Provider component with session context
- *
- * @example
- * // Wrap your app with the session provider
- * <SessionProvider>
- *   <App />
- * </SessionProvider>
- */
 export const SessionProvider = ({
   children,
 }: {
   children: React.ReactNode;
 }) => {
-  /** Current authentication session */
   const [session, setSession] = useState<Session | null>(null);
-
-  /** Loading state during session initialization */
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("SessionProvider useEffect triggered");
+    let cancelled = false;
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("SessionProvider getSession result:", session);
-      setSession(session);
+    // Resolve the profile (role) before clearing loading, so the router
+    // never renders with an unknown role.
+    const applySession = async (next: Session | null) => {
+      if (next?.user) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", next.user.id)
+          .single();
+        if (cancelled) return;
+        setProfile((data as Profile) ?? null);
+      } else {
+        setProfile(null);
+      }
+      if (cancelled) return;
+      setSession(next);
       setLoading(false);
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      applySession(session);
     });
 
-    // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        console.log(
-          "SessionProvider onAuthStateChange event:",
-          _event,
-          "session:",
-          session
-        );
-        setSession(session);
-        setLoading(false);
+        applySession(session);
       }
     );
 
     return () => {
+      cancelled = true;
       authListener.subscription.unsubscribe();
     };
   }, []);
 
   return (
-    <SessionContext.Provider value={{ session, loading }}>
+    <SessionContext.Provider
+      value={{ session, profile, isAdmin: profile?.role === "admin", loading }}
+    >
       {children}
     </SessionContext.Provider>
   );
 };
 
 /**
- * Custom hook to access session context
- * Provides easy access to session state and loading status
- *
- * @hook
- * @returns {SessionContextType} Session context with current session and loading state
+ * Access session state, the user's profile, and role flags.
  *
  * @example
- * // Use in any component to access session
- * const { session, loading } = useSession();
- *
- * if (loading) return <LoadingSpinner />;
- * if (!session) return <LoginScreen />;
- * return <AuthenticatedApp />;
+ * const { session, profile, isAdmin, loading } = useSession();
  */
 export const useSession = () => {
   return useContext(SessionContext);
