@@ -1,10 +1,11 @@
 /**
  * @fileoverview Today screen — the employee's home base.
  * Work clock (in/pause/resume/out), focus timer, and the hour-by-hour
- * timeline of updates for today.
+ * timeline of updates for today. Clocking out goes through a "plan for
+ * tomorrow" modal that can save tasks for the next work day.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useSession } from "@/context/SessionProvider";
 import { useWorkSession } from "@/src/hooks/useWorkSession";
@@ -13,6 +14,10 @@ import { useTasks } from "@/src/hooks/useTasks";
 import ClockCard from "@/src/components/logbook/ClockCard";
 import FocusTimer from "@/src/components/logbook/FocusTimer";
 import HourlyTimeline from "@/src/components/logbook/HourlyTimeline";
+import PlanTomorrowModal, {
+  TaskDraft,
+} from "@/src/components/logbook/PlanTomorrowModal";
+import { workDateOffset } from "@/src/lib/dates";
 
 /** Hours from clock-in through the current hour (for today's session). */
 const sessionHours = (clockInAt: string | undefined): number[] => {
@@ -36,9 +41,23 @@ export default function TodayScreen() {
     clockOut,
   } = useWorkSession();
   const { updates, saveUpdate } = useHourlyUpdates();
-  const { tasks } = useTasks();
+  const { tasks, createTask } = useTasks();
+  const [planVisible, setPlanVisible] = useState(false);
 
   const firstName = profile?.full_name?.split(" ")[0];
+
+  const confirmClockOut = async (drafts: TaskDraft[]) => {
+    const tomorrow = workDateOffset(1);
+    for (const draft of drafts) {
+      await createTask({
+        title: draft.title,
+        priority: draft.priority,
+        plannedFor: tomorrow,
+      });
+    }
+    await clockOut();
+    setPlanVisible(false);
+  };
 
   return (
     <ScrollView className="flex-1 bg-gray-50">
@@ -60,8 +79,14 @@ export default function TodayScreen() {
           onClockIn={clockIn}
           onPause={pause}
           onResume={resume}
-          onClockOut={clockOut}
+          onClockOut={() => setPlanVisible(true)}
           error={error}
+        />
+
+        <PlanTomorrowModal
+          visible={planVisible}
+          onCancel={() => setPlanVisible(false)}
+          onConfirm={confirmClockOut}
         />
 
         <FocusTimer tasks={tasks} />

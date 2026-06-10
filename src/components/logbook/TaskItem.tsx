@@ -1,6 +1,6 @@
 /**
  * Single task row: status toggle, priority pill, "Assigned" badge when the
- * creator differs from the assignee, "Carried over" when created before today.
+ * creator differs from the assignee, "Carried over" when planned before today.
  */
 
 import React from "react";
@@ -35,7 +35,7 @@ interface TaskItemProps {
 export default function TaskItem({ task, onSetStatus, onDelete }: TaskItemProps) {
   const assigned = task.created_by !== task.user_id;
   const carriedOver =
-    task.status !== "done" && task.created_at.slice(0, 10) < localWorkDate();
+    task.status !== "done" && task.planned_for < localWorkDate();
 
   return (
     <View className="bg-white border border-gray-200 rounded-lg p-3 mb-2 flex-row items-start">
