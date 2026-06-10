@@ -1,280 +1,116 @@
-# 🚀 Expo + Supabase + OpenAI Template
+# 📒 Logbook
 
-A modern, production-ready React Native template built with Expo Router, Supabase authentication, and OpenAI integration. Features a professional UI built with NativeWind and comprehensive user management.
+An internal employee work-tracking app for small teams, built with Expo (React Native + Web) and Supabase. Employees clock in, track focus time, log what they did each hour, and work from a prioritized task list that carries over day to day. Cofounders (admins) get a live team dashboard — while their own activity stays private.
 
-## ✨ Features
+## How it works
 
-### 🔐 **Authentication & User Management**
+### 👤 Employees
 
-- Complete Supabase authentication flow (sign up, sign in, sign out)
-- Protected routes with Expo Router v6
-- User profile management with database persistence
-- Row Level Security (RLS) for secure data access
+- **Sign in** with credentials provided by an admin (no public signup)
+- **Clock in / pause / resume / clock out** — worked time and break time are tracked with server-side timestamps (the client clock is never trusted)
+- **Focus timer** — Pomodoro-style countdown (25/50/5 min), optionally tied to a task
+- **Hourly updates** — log a short note for each hour of the day, as you go or at day's end; editable same-day only, with an "edited" flag
+- **Tasks** — create your own tasks with priorities; unfinished tasks automatically carry over to tomorrow ("Carried over" badge); tasks assigned by an admin show an "Assigned" badge
 
-### 🤖 **AI Integration**
+### 🛡️ Admins (cofounders)
 
-- OpenAI GPT-3.5-turbo integration via Supabase Edge Functions
-- Professional AI assistant interface
-- Secure API key management through environment variables
+- Everything employees have, **plus a Team tab**:
+  - Live status for every employee (Working / On break / Done / Not started)
+  - Hours worked today and this week
+  - Per-day drill-down: session summary, hourly update timeline, task list
+  - Assign tasks to any employee
+  - Create employee accounts (email + temporary password)
+- **Admin data is invisible to everyone else** — employees see only their own data, and admins can't see other admins. Enforced with Postgres Row Level Security, not just UI.
 
-### 🎨 **Modern UI/UX**
+## Tech stack
 
-- Professional design system with NativeWind (Tailwind CSS for React Native)
-- Responsive layouts for mobile and web
-- Card-based design patterns
-- Consistent typography and spacing
-- Custom TouchableOpacity components
+- **Expo SDK 54** + React Native 0.81 + Expo Router v6 (web, iOS, Android from one codebase)
+- **NativeWind v4** (Tailwind CSS)
+- **Supabase** — Postgres, Auth, RLS, Edge Functions
+- **TypeScript** throughout
 
-### 🏗️ **Architecture**
+## Local development
 
-- **Expo SDK 54** - Latest stable release
-- **Expo Router v6** - File-based routing with Protected Routes
-- **Supabase** - Backend as a Service with PostgreSQL
-- **TypeScript** - Full type safety
-- **NativeWind v4** - Tailwind CSS for React Native
+1. **Install dependencies**
 
-## 📁 Project Structure
+   ```bash
+   npm install
+   ```
+
+2. **Start Supabase** (requires Docker)
+
+   ```bash
+   npx supabase start
+   npx supabase db reset   # applies migrations + seeds the dev admin
+   ```
+
+3. **Configure env** — copy `.env.example` to `.env` and fill in the URL and anon key from `npx supabase status`.
+
+4. **Serve the edge function** (needed for creating employee accounts)
+
+   ```bash
+   npx supabase functions serve admin-create-user
+   ```
+
+5. **Run the app**
+
+   ```bash
+   npm run web      # or: npm run ios / npm run android
+   ```
+
+6. **Sign in** as the seeded local admin: `admin@logbook.dev` / `password123`. Create employee accounts from the Team tab.
+
+## Production setup
+
+1. Push migrations to your hosted project: `npx supabase db push`
+2. Deploy the edge function: `npx supabase functions deploy admin-create-user`
+3. Disable signups in the dashboard (Authentication → Sign In / Up), matching `config.toml`
+4. Create the first admin in the dashboard (Authentication → Users → Add user), then promote it:
+   ```sql
+   update public.profiles set role = 'admin' where id = '<user-id>';
+   ```
+
+## Project structure
 
 ```
 src/
-├── app/                    # Expo Router pages
-│   ├── (auth)/            # Authentication screens
-│   │   └── index.tsx      # Sign in/Sign up
-│   ├── (tabs)/            # Main app tabs
-│   │   ├── index.tsx      # Home screen
-│   │   ├── openai.tsx     # AI assistant
-│   │   └── account.tsx    # User profile
-│   ├── _layout.tsx        # Root layout with auth protection
-│   ├── modal.tsx          # Modal demo
-│   └── +not-found.tsx     # 404 page
-├── components/            # Reusable UI components
-├── constants/             # App constants and themes
-└── utils/                 # Utility functions
-
+├── app/
+│   ├── (auth)/index.tsx          # Sign in (no signup)
+│   ├── (tabs)/
+│   │   ├── index.tsx             # Today: clock, focus timer, hourly updates
+│   │   ├── tasks.tsx             # Task list with carry-over
+│   │   ├── account.tsx           # Profile + sign out
+│   │   └── admin/                # Admin-only (hidden tab + redirect + RLS)
+│   │       ├── index.tsx         # Team dashboard
+│   │       ├── [id].tsx          # Employee day drill-down
+│   │       └── new-user.tsx      # Create employee account
+│   ├── components/logbook/       # ClockCard, FocusTimer, HourlyTimeline, ...
+│   ├── hooks/                    # useWorkSession, useTasks, useHourlyUpdates, useEmployees
+│   ├── lib/                      # date/time helpers
+│   └── types/logbook.ts          # Row types
+context/SessionProvider.tsx        # Session + profile/role context
 supabase/
-├── functions/openai/      # Edge Function for OpenAI integration
-├── migrations/            # Database schema migrations
-├── config.toml           # Supabase configuration
-├── .env.local            # Local environment variables (not committed)
-└── .env.local.example    # Example environment file (committed)
-
-# Environment Files
-.env                      # Main environment file (not committed)
-.env.example             # Example main environment file (committed)
+├── migrations/                    # Schema, RLS, RPCs
+├── functions/admin-create-user/   # Admin-only account creation
+├── functions/openai/              # Kept for future AI digests
+└── seed.sql                       # Local dev admin
 ```
 
-## 🛠️ Tech Stack
+## Data model
 
-| Category      | Technology                             |
-| ------------- | -------------------------------------- |
-| **Framework** | Expo SDK 54 + React Native             |
-| **Routing**   | Expo Router v6 (file-based)            |
-| **Styling**   | NativeWind v4 (Tailwind CSS)           |
-| **Backend**   | Supabase (Auth + Database + Functions) |
-| **Database**  | PostgreSQL with Row Level Security     |
-| **AI**        | OpenAI GPT-3.5-turbo                   |
-| **Language**  | TypeScript                             |
-| **State**     | React Context + Hooks                  |
+| Table            | Purpose                                                               |
+| ---------------- | --------------------------------------------------------------------- |
+| `profiles`       | User info + `role` (`admin` / `employee`)                              |
+| `work_sessions`  | One per user per day: clock-in/out, status                             |
+| `session_breaks` | Pause/resume intervals within a session                                |
+| `hourly_updates` | One note per (user, day, hour), same-day editable                      |
+| `tasks`          | Assignee, creator, priority, status; carry-over computed at read time  |
 
-## 🚀 Quick Start
+`session_summaries` is a view that computes total/break seconds per session. The RPCs `clock_out` and `end_break` close timestamps server-side.
 
-### Prerequisites
+## Roadmap ideas
 
-- Node.js 18+
-- Expo CLI: `npm install -g @expo/cli`
-- Supabase CLI: [Installation Guide](https://supabase.com/docs/guides/cli/getting-started)
-- OpenAI API Key: [Get one here](https://platform.openai.com/api-keys)
-
-### 1. Clone and Install
-
-```bash
-# Clone the repository
-git clone <your-repo-url>
-cd gemini-expo-supabase
-
-# Install dependencies
-npm install
-```
-
-### 2. Set Up Supabase
-
-```bash
-# Start local Supabase
-supabase start
-
-# Apply database migrations
-supabase db reset
-```
-
-### 3. Configure Environment
-
-```bash
-# Copy example environment files
-cp .env.example .env
-cp supabase/.env.local.example supabase/.env.local
-```
-
-Add your OpenAI API key to `supabase/.env.local`:
-
-```bash
-OPENAI_API_KEY=sk-your-actual-openai-api-key-here
-```
-
-The `.env` file will be automatically populated with local Supabase URLs when you run `supabase start`.
-
-### 4. Start Edge Functions
-
-```bash
-# Start the OpenAI Edge Function
-supabase functions serve openai --env-file supabase/.env.local
-```
-
-### 5. Run the App
-
-```bash
-# Start Expo development server
-npm start
-
-# Run on specific platforms
-npm run ios     # iOS simulator
-npm run android # Android emulator
-npm run web     # Web browser
-```
-
-## 🔧 Development
-
-### Environment Configuration
-
-This project uses environment files to manage configuration:
-
-| File                          | Purpose                                       | Committed |
-| ----------------------------- | --------------------------------------------- | --------- |
-| `.env.example`                | Example main environment variables            | ✅ Yes    |
-| `.env`                        | Actual environment variables (auto-generated) | ❌ No     |
-| `supabase/.env.local.example` | Example Supabase Edge Function variables      | ✅ Yes    |
-| `supabase/.env.local`         | Actual Edge Function environment variables    | ❌ No     |
-
-**First-time setup:**
-
-```bash
-# Copy example files
-cp .env.example .env
-cp supabase/.env.local.example supabase/.env.local
-
-# Edit supabase/.env.local and add your OpenAI API key
-OPENAI_API_KEY=sk-your-actual-openai-api-key-here
-```
-
-### Local Supabase URLs
-
-After running `supabase start`, you'll have:
-
-- **API URL**: `http://127.0.0.1:54321`
-- **Database**: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
-- **Studio**: `http://127.0.0.1:54323` (Database management UI)
-- **Edge Functions**: `http://127.0.0.1:54321/functions/v1/openai`
-
-### Database Management
-
-```bash
-# View database schema
-supabase db diff
-
-# Reset database (applies all migrations)
-supabase db reset
-
-# Create new migration
-supabase migration new <migration_name>
-
-# View database in browser
-open http://127.0.0.1:54323
-```
-
-### Testing Edge Functions
-
-```bash
-# Test the OpenAI function
-curl -X POST http://127.0.0.1:54321/functions/v1/openai \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello, AI!"}'
-```
-
-## 📱 App Features
-
-### 🏠 **Home Screen**
-
-- Welcome message with user info
-- Quick action cards for navigation
-- Feature overview and checklist
-- Professional card-based layout
-
-### 🤖 **AI Assistant**
-
-- Chat interface with OpenAI GPT-3.5-turbo
-- Professional messaging UI
-- Loading states and error handling
-- Copy suggestions and examples
-
-### 👤 **Account Management**
-
-- User profile editing (username, website, full name)
-- Avatar URL management
-- Account information display
-- Secure sign out functionality
-
-### 🔐 **Authentication**
-
-- Email/password sign up and sign in
-- Form validation and error handling
-- Automatic profile creation
-- Protected route navigation
-
-## 🚀 Deployment
-
-### Supabase Production Setup
-
-1. Create a new Supabase project at [supabase.com](https://supabase.com)
-2. Push your schema: `supabase db push`
-3. Deploy Edge Functions: `supabase functions deploy openai`
-4. Set production secrets: `supabase secrets set OPENAI_API_KEY=your-key`
-
-### Expo App Deployment
-
-```bash
-# Build for production
-eas build --platform all
-
-# Submit to app stores
-eas submit --platform all
-```
-
-## 📚 Documentation
-
-- [DATABASE.md](./DATABASE.md) - Database schema and setup
-- [Expo Router Docs](https://docs.expo.dev/router/)
-- [Supabase Docs](https://supabase.com/docs)
-- [NativeWind Docs](https://www.nativewind.dev/)
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Built with [Expo](https://expo.dev/)
-- Powered by [Supabase](https://supabase.com/)
-- AI by [OpenAI](https://openai.com/)
-- Styled with [NativeWind](https://www.nativewind.dev/)
-
----
-
-**Ready to build something amazing?** 🚀
-This template gives you everything you need for a modern, scalable mobile app with authentication, database, and AI features!
+- AI daily digests of hourly updates for admins (the `openai` edge function is kept for this)
+- Push/email reminders to log updates or clock out
+- CSV export of weekly hours
+- Live dashboard via Supabase Realtime

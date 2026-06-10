@@ -5,6 +5,7 @@ import { Tabs } from "expo-router";
 import Colors from "@/src/constants/Colors";
 import { useColorScheme } from "@/src/components/useColorScheme";
 import { useClientOnlyValue } from "@/src/components/useClientOnlyValue";
+import { useSession } from "@/context/SessionProvider";
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -16,6 +17,7 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { isAdmin } = useSession();
 
   return (
     <Tabs
@@ -29,17 +31,28 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
+          title: "Today",
+          tabBarIcon: ({ color }) => <TabBarIcon name="clock-o" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="openai"
+        name="tasks"
         options={{
-          title: "OpenAI",
+          title: "Tasks",
           tabBarIcon: ({ color }) => (
-            <TabBarIcon name="lightbulb-o" color={color} />
+            <TabBarIcon name="check-square-o" color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: "Team",
+          // Hidden (no tab button) for employees; the admin layout also
+          // redirects, and RLS is the real data boundary.
+          href: isAdmin ? undefined : null,
+          headerShown: false,
+          tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
         }}
       />
       <Tabs.Screen
