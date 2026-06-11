@@ -10,7 +10,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest --watchAll",
-    "vercel:build": "expo export"
+    "vercel-build": "expo export"
   },
   "jest": {
     "preset": "jest-expo"
