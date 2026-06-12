@@ -67,6 +67,8 @@ export function useTasks(userId?: string) {
       priority: TaskPriority;
       /** Local work date (YYYY-MM-DD); defaults to today. */
       plannedFor?: string;
+      /** Optional time estimate in minutes. */
+      estimatedMinutes?: number;
     }): Promise<string | null> => {
       if (!session?.user.id || !targetUser) return "Not signed in";
       const { error } = await supabase.from("tasks").insert({
@@ -76,6 +78,7 @@ export function useTasks(userId?: string) {
         description: input.description?.trim() || null,
         priority: input.priority,
         planned_for: input.plannedFor ?? localWorkDate(),
+        estimated_minutes: input.estimatedMinutes ?? null,
       });
       await refresh();
       return error ? error.message : null;
@@ -83,12 +86,45 @@ export function useTasks(userId?: string) {
     [session?.user.id, targetUser, refresh]
   );
 
+  /**
+   * Set the status of a task. Returns `{ error, needsOvertimeReason }`.
+   * When completing a task that exceeded its estimate, the caller should
+   * show the overtime reason modal instead of immediately completing.
+   */
   const setStatus = useCallback(
-    async (task: Task, status: TaskStatus): Promise<string | null> => {
+    async (
+      task: Task,
+      status: TaskStatus,
+      /** Pre-computed tracked seconds from useTaskTimer. */
+      trackedSeconds?: number
+    ): Promise<{ error: string | null; needsOvertimeReason: boolean }> => {
+      // Check if completing a task that exceeded its estimate
+      if (
+        status === "done" &&
+        task.estimated_minutes &&
+        trackedSeconds !== undefined &&
+        trackedSeconds > task.estimated_minutes * 60
+      ) {
+        return { error: null, needsOvertimeReason: true };
+      }
+
       const { error } = await supabase
         .from("tasks")
         .update({ status })
         .eq("id", task.id);
+      await refresh();
+      return { error: error ? error.message : null, needsOvertimeReason: false };
+    },
+    [refresh]
+  );
+
+  /** Save an overtime reason and then mark the task as done. */
+  const completeWithOvertimeReason = useCallback(
+    async (taskId: string, reason: string): Promise<string | null> => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: "done", overtime_reason: reason.trim() })
+        .eq("id", taskId);
       await refresh();
       return error ? error.message : null;
     },
@@ -112,6 +148,7 @@ export function useTasks(userId?: string) {
     refresh,
     createTask,
     setStatus,
+    completeWithOvertimeReason,
     deleteTask,
   };
 }

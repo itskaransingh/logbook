@@ -1,17 +1,17 @@
 /**
  * @fileoverview Tasks screen — today's task list plus tomorrow's plan.
- * Unfinished tasks carry over automatically (computed at read time);
- * tasks assigned by an admin and carried-over tasks get badges. The plan
- * of action for tomorrow (from clock-out or the Tomorrow toggle) can be
- * reviewed and changed here at any time.
+ * Includes time tracking (start/stop timers), estimated time display,
+ * and overtime reason modal when completing over-estimate tasks.
  */
 
 import React, { useMemo, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useTasks } from "@/src/hooks/useTasks";
+import { useTaskTimer } from "@/src/hooks/useTaskTimer";
 import TaskItem from "@/src/components/logbook/TaskItem";
 import TaskForm from "@/src/components/logbook/TaskForm";
-import { Task } from "@/src/types/logbook";
+import OvertimeReasonModal from "@/src/components/logbook/OvertimeReasonModal";
+import { Task, TaskStatus } from "@/src/types/logbook";
 
 const Section = ({ title, tasks, children }: {
   title: string;
@@ -32,9 +32,14 @@ const Section = ({ title, tasks, children }: {
 };
 
 export default function TasksScreen() {
-  const { tasks, upcoming, loading, error, createTask, setStatus, deleteTask } =
+  const { tasks, upcoming, loading, error, createTask, setStatus, completeWithOvertimeReason, deleteTask } =
     useTasks();
+  const taskTimer = useTaskTimer();
   const [showForm, setShowForm] = useState(false);
+
+  // Overtime modal state
+  const [overtimeTask, setOvertimeTask] = useState<Task | null>(null);
+  const [overtimeSeconds, setOvertimeSeconds] = useState(0);
 
   const sections = useMemo(
     () => ({
@@ -43,6 +48,37 @@ export default function TasksScreen() {
       done: tasks.filter((t) => t.status === "done"),
     }),
     [tasks]
+  );
+
+  const handleSetStatus = async (task: Task, status: TaskStatus) => {
+    const tracked = taskTimer.totalSeconds(task.id);
+
+    // Stop timer when completing
+    if (status === "done" && taskTimer.runningTaskIds.has(task.id)) {
+      await taskTimer.stopTimer(task.id);
+    }
+
+    const result = await setStatus(task, status, tracked);
+    if (result.needsOvertimeReason) {
+      // Stop timer if still running
+      if (taskTimer.runningTaskIds.has(task.id)) {
+        await taskTimer.stopTimer(task.id);
+      }
+      setOvertimeTask(task);
+      setOvertimeSeconds(tracked);
+    }
+  };
+
+  const renderTaskItem = (task: Task, opts?: { showDelete?: boolean }) => (
+    <TaskItem
+      task={task}
+      onSetStatus={handleSetStatus}
+      onDelete={opts?.showDelete !== false ? deleteTask : undefined}
+      isTimerRunning={taskTimer.runningTaskIds.has(task.id)}
+      trackedSeconds={taskTimer.totalSeconds(task.id)}
+      onStartTimer={taskTimer.startTimer}
+      onStopTimer={taskTimer.stopTimer}
+    />
   );
 
   return (
@@ -91,21 +127,38 @@ export default function TasksScreen() {
         )}
 
         <Section title="In Progress" tasks={sections.inProgress}>
-          {(t) => (
-            <TaskItem task={t} onSetStatus={setStatus} onDelete={deleteTask} />
-          )}
+          {(t) => renderTaskItem(t)}
         </Section>
         <Section title="To Do" tasks={sections.todo}>
-          {(t) => (
-            <TaskItem task={t} onSetStatus={setStatus} onDelete={deleteTask} />
-          )}
+          {(t) => renderTaskItem(t)}
         </Section>
         <Section title="Done Today" tasks={sections.done}>
-          {(t) => <TaskItem task={t} onSetStatus={setStatus} />}
+          {(t) => (
+            <TaskItem
+              task={t}
+              onSetStatus={handleSetStatus}
+              trackedSeconds={taskTimer.totalSeconds(t.id)}
+            />
+          )}
         </Section>
         <Section title="Tomorrow's Plan" tasks={upcoming}>
           {(t) => <TaskItem task={t} onDelete={deleteTask} />}
         </Section>
+
+        {/* Overtime reason modal */}
+        {overtimeTask && (
+          <OvertimeReasonModal
+            visible={!!overtimeTask}
+            taskTitle={overtimeTask.title}
+            estimatedMinutes={overtimeTask.estimated_minutes!}
+            actualSeconds={overtimeSeconds}
+            onCancel={() => setOvertimeTask(null)}
+            onConfirm={async (reason) => {
+              await completeWithOvertimeReason(overtimeTask.id, reason);
+              setOvertimeTask(null);
+            }}
+          />
+        )}
       </View>
     </ScrollView>
   );

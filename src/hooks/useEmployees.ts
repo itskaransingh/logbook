@@ -1,8 +1,9 @@
 /**
  * Admin dashboard data: every team member (employees and other admins,
  * excluding the signed-in admin — their own day lives on the Today tab)
- * joined client-side with today's session summary and this week's totals.
- * RLS restricts this data to admins.
+ * joined client-side with today's daily session summary and this week's
+ * totals. Uses `daily_session_summaries` which aggregates multiple
+ * sessions per day. RLS restricts this data to admins.
  */
 
 import { useCallback, useState } from "react";
@@ -10,16 +11,19 @@ import { useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useSession } from "../../context/SessionProvider";
 import { localWorkDate, startOfWeekDate } from "../lib/dates";
-import { Profile, SessionSummary } from "../types/logbook";
-import { workedSeconds } from "../lib/time";
+import { DailySessionSummary, Profile } from "../types/logbook";
 
 const REFRESH_MS = 30000;
 
 export interface EmployeeOverview {
   profile: Profile;
-  today: SessionSummary | null;
+  today: DailySessionSummary | null;
   weekWorkedSeconds: number;
 }
+
+/** Worked seconds from a daily summary = total_seconds - break_seconds. */
+const workedFromDaily = (s: DailySessionSummary): number =>
+  s.total_seconds - s.break_seconds;
 
 export function useEmployees() {
   const { session } = useSession();
@@ -33,7 +37,7 @@ export function useEmployees() {
     const [profilesRes, weekRes] = await Promise.all([
       supabase.from("profiles").select("*").order("full_name"),
       supabase
-        .from("session_summaries")
+        .from("daily_session_summaries")
         .select("*")
         .gte("work_date", startOfWeekDate()),
     ]);
@@ -45,7 +49,7 @@ export function useEmployees() {
     }
 
     const today = localWorkDate();
-    const summaries = (weekRes.data as SessionSummary[]) ?? [];
+    const summaries = (weekRes.data as DailySessionSummary[]) ?? [];
 
     const overview = ((profilesRes.data as Profile[]) ?? [])
       .filter((profile) => profile.id !== selfId)
@@ -54,7 +58,7 @@ export function useEmployees() {
         return {
           profile,
           today: mine.find((s) => s.work_date === today) ?? null,
-          weekWorkedSeconds: mine.reduce((sum, s) => sum + workedSeconds(s), 0),
+          weekWorkedSeconds: mine.reduce((sum, s) => sum + workedFromDaily(s), 0),
         };
       });
 

@@ -1,18 +1,41 @@
 /**
  * Admin dashboard: every team member (employees and other admins) with
- * live status, hours today, and weekly totals. The signed-in admin's own
- * row is excluded — their day lives on the Today tab.
+ * live status, user presence (Slack-like), hours today, and weekly totals.
+ * The signed-in admin's own row is excluded — their day lives on the Today tab.
  */
 
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useEmployees } from "@/src/hooks/useEmployees";
+import { supabase } from "@/lib/supabase";
 import EmployeeCard from "@/src/components/logbook/EmployeeCard";
+import { UserStatus } from "@/src/types/logbook";
 
 export default function AdminDashboard() {
   const router = useRouter();
   const { employees, loading, error } = useEmployees();
+  const [statuses, setStatuses] = useState<Record<string, UserStatus>>({});
+
+  // Fetch all user statuses
+  const refreshStatuses = useCallback(async () => {
+    const { data } = await supabase.from("user_status").select("*");
+    if (data) {
+      const map: Record<string, UserStatus> = {};
+      for (const s of data as UserStatus[]) {
+        map[s.user_id] = s;
+      }
+      setStatuses(map);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshStatuses();
+      const timer = setInterval(refreshStatuses, 30000);
+      return () => clearInterval(timer);
+    }, [refreshStatuses])
+  );
 
   const working = employees.filter((e) => e.today?.status === "active").length;
 
@@ -51,6 +74,7 @@ export default function AdminDashboard() {
           <EmployeeCard
             key={e.profile.id}
             employee={e}
+            userStatus={statuses[e.profile.id] ?? null}
             onPress={() => router.push(`/admin/${e.profile.id}`)}
           />
         ))}

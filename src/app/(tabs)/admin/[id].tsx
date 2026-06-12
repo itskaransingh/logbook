@@ -1,7 +1,7 @@
 /**
- * Admin team-member detail (employees and other admins): pick a day, see
- * the session summary, hourly timeline (read-only), and the member's task
- * list with an assign form.
+ * Admin team-member detail: pick a day, see all sessions for the day
+ * (with resume for completed ones), hourly timeline, user status,
+ * task list with comments and overtime reasons.
  */
 
 import React, { useCallback, useState } from "react";
@@ -10,12 +10,20 @@ import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useHourlyUpdates } from "@/src/hooks/useHourlyUpdates";
 import { useTasks } from "@/src/hooks/useTasks";
+import { useUserStatus } from "@/src/hooks/useUserStatus";
+import { useTaskComments } from "@/src/hooks/useTaskComments";
 import HourlyTimeline from "@/src/components/logbook/HourlyTimeline";
 import TaskItem from "@/src/components/logbook/TaskItem";
 import TaskForm from "@/src/components/logbook/TaskForm";
-import { Profile, SessionSummary } from "@/src/types/logbook";
+import TaskComments from "@/src/components/logbook/TaskComments";
+import { Profile, WorkSession } from "@/src/types/logbook";
 import { formatWorkDate, localWorkDate, workDateOffset } from "@/src/lib/dates";
-import { formatDuration, formatTime, workedSeconds } from "@/src/lib/time";
+import {
+  formatDuration,
+  formatTime,
+  workedSecondsOf,
+  breakSecondsOf,
+} from "@/src/lib/time";
 
 const STATUS_LABELS = {
   active: "Working",
@@ -23,29 +31,66 @@ const STATUS_LABELS = {
   completed: "Completed",
 } as const;
 
+/** Inline comment hook per-task: manages comments for currently expanded task. */
+function useExpandedComments() {
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const commentsHook = useTaskComments(expandedTaskId);
+  return { expandedTaskId, setExpandedTaskId, ...commentsHook };
+}
+
 export default function EmployeeDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [workDate, setWorkDate] = useState(localWorkDate());
   const [employee, setEmployee] = useState<Profile | null>(null);
-  const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const [sessions, setSessions] = useState<WorkSession[]>([]);
+  const [sessionBreaks, setSessionBreaks] = useState<
+    Record<string, import("@/src/types/logbook").SessionBreak[]>
+  >({});
   const [showAssign, setShowAssign] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
 
   const { updates } = useHourlyUpdates(id, workDate);
   const { tasks, upcoming, createTask, setStatus } = useTasks(id);
+  const { status: userStatus } = useUserStatus(id);
+  const {
+    expandedTaskId,
+    setExpandedTaskId,
+    comments,
+    addComment,
+  } = useExpandedComments();
 
   const refresh = useCallback(async () => {
     if (!id) return;
-    const [profileRes, summaryRes] = await Promise.all([
+    const [profileRes, sessionsRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", id).maybeSingle(),
       supabase
-        .from("session_summaries")
+        .from("work_sessions")
         .select("*")
         .eq("user_id", id)
         .eq("work_date", workDate)
-        .maybeSingle(),
+        .order("clock_in_at", { ascending: true }),
     ]);
     setEmployee((profileRes.data as Profile) ?? null);
-    setSummary((summaryRes.data as SessionSummary) ?? null);
+    const sessionList = (sessionsRes.data as WorkSession[]) ?? [];
+    setSessions(sessionList);
+
+    // Fetch breaks for all sessions
+    if (sessionList.length > 0) {
+      const ids = sessionList.map((s) => s.id);
+      const { data: breaks } = await supabase
+        .from("session_breaks")
+        .select("*")
+        .in("session_id", ids)
+        .order("started_at");
+      const grouped: Record<string, import("@/src/types/logbook").SessionBreak[]> = {};
+      for (const b of (breaks as import("@/src/types/logbook").SessionBreak[]) ?? []) {
+        if (!grouped[b.session_id]) grouped[b.session_id] = [];
+        grouped[b.session_id].push(b);
+      }
+      setSessionBreaks(grouped);
+    } else {
+      setSessionBreaks({});
+    }
   }, [id, workDate]);
 
   useFocusEffect(
@@ -57,15 +102,23 @@ export default function EmployeeDetail() {
   );
 
   const isToday = workDate === localWorkDate();
-  // All hours that have data, plus the worked span for today.
+
+  const handleResumeSession = async (sessionId: string) => {
+    setResumeError(null);
+    const { error } = await supabase.rpc("admin_resume_session", {
+      p_session_id: sessionId,
+    });
+    if (error) setResumeError(error.message);
+    await refresh();
+  };
+
+  // Compute hours for timeline
   const hoursWithData = updates.map((u) => u.hour);
-  const spanStart = summary ? new Date(summary.clock_in_at).getHours() : null;
-  const spanEnd = summary
-    ? (summary.clock_out_at ? new Date(summary.clock_out_at) : new Date()).getHours()
-    : null;
   const hourSet = new Set<number>(hoursWithData);
-  if (spanStart != null && spanEnd != null) {
-    for (let h = spanStart; h <= spanEnd; h++) hourSet.add(h);
+  for (const s of sessions) {
+    const start = new Date(s.clock_in_at).getHours();
+    const end = (s.clock_out_at ? new Date(s.clock_out_at) : new Date()).getHours();
+    for (let h = start; h <= end; h++) hourSet.add(h);
   }
   const hours = [...hourSet].sort((a, b) => a - b);
 
@@ -75,6 +128,15 @@ export default function EmployeeDetail() {
         options={{ title: employee?.full_name || "Team member" }}
       />
       <View className="px-4 py-6 max-w-2xl w-full self-center">
+        {/* User status */}
+        {userStatus && (
+          <View className="flex-row items-center gap-2 bg-white rounded-lg border border-gray-100 px-4 py-2 mb-4">
+            <Text className="text-lg">{userStatus.emoji}</Text>
+            <Text className="text-sm text-gray-700">{userStatus.label}</Text>
+            <Text className="text-xs text-gray-400 ml-auto">Status</Text>
+          </View>
+        )}
+
         {/* Date pager */}
         <View className="flex-row items-center justify-between bg-white rounded-2xl border border-gray-100 p-3 mb-4">
           <TouchableOpacity
@@ -103,48 +165,93 @@ export default function EmployeeDetail() {
           </TouchableOpacity>
         </View>
 
-        {/* Session summary */}
+        {/* Session summaries — one card per session */}
         <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
           <Text className="text-xl font-semibold text-gray-900 mb-3">
-            Work Session
+            Work Sessions
+            {sessions.length > 1 && (
+              <Text className="text-sm font-normal text-gray-400">
+                {" "}· {sessions.length} sessions
+              </Text>
+            )}
           </Text>
-          {summary ? (
-            <View className="flex-row flex-wrap gap-6">
-              <View>
-                <Text className="text-xs text-gray-400 uppercase">Status</Text>
-                <Text className="text-gray-800 font-medium">
-                  {STATUS_LABELS[summary.status]}
-                </Text>
-              </View>
-              <View>
-                <Text className="text-xs text-gray-400 uppercase">Worked</Text>
-                <Text className="text-gray-800 font-medium">
-                  {formatDuration(workedSeconds(summary))}
-                </Text>
-              </View>
-              <View>
-                <Text className="text-xs text-gray-400 uppercase">Breaks</Text>
-                <Text className="text-gray-800 font-medium">
-                  {formatDuration(summary.break_seconds)}
-                </Text>
-              </View>
-              <View>
-                <Text className="text-xs text-gray-400 uppercase">In</Text>
-                <Text className="text-gray-800 font-medium">
-                  {formatTime(summary.clock_in_at)}
-                </Text>
-              </View>
-              {summary.clock_out_at && (
-                <View>
-                  <Text className="text-xs text-gray-400 uppercase">Out</Text>
-                  <Text className="text-gray-800 font-medium">
-                    {formatTime(summary.clock_out_at)}
-                  </Text>
-                </View>
-              )}
-            </View>
+
+          {sessions.length === 0 ? (
+            <Text className="text-gray-400">No sessions on this day</Text>
           ) : (
-            <Text className="text-gray-400">No session on this day</Text>
+            sessions.map((s, i) => {
+              const br = sessionBreaks[s.id] ?? [];
+              const worked = workedSecondsOf(s, br);
+              return (
+                <View
+                  key={s.id}
+                  className={`${
+                    i > 0 ? "border-t border-gray-100 pt-3 mt-3" : ""
+                  }`}
+                >
+                  <View className="flex-row flex-wrap gap-4 mb-2">
+                    <View>
+                      <Text className="text-xs text-gray-400 uppercase">
+                        Status
+                      </Text>
+                      <Text className="text-gray-800 font-medium">
+                        {STATUS_LABELS[s.status]}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs text-gray-400 uppercase">
+                        Worked
+                      </Text>
+                      <Text className="text-gray-800 font-medium">
+                        {formatDuration(worked)}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs text-gray-400 uppercase">
+                        Breaks
+                      </Text>
+                      <Text className="text-gray-800 font-medium">
+                        {formatDuration(breakSecondsOf(br))}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs text-gray-400 uppercase">
+                        In
+                      </Text>
+                      <Text className="text-gray-800 font-medium">
+                        {formatTime(s.clock_in_at)}
+                      </Text>
+                    </View>
+                    {s.clock_out_at && (
+                      <View>
+                        <Text className="text-xs text-gray-400 uppercase">
+                          Out
+                        </Text>
+                        <Text className="text-gray-800 font-medium">
+                          {formatTime(s.clock_out_at)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Resume button */}
+                  {s.status === "completed" && isToday && (
+                    <TouchableOpacity
+                      className="bg-blue-600 rounded-lg py-2 px-4 active:bg-blue-700 mt-1"
+                      onPress={() => handleResumeSession(s.id)}
+                    >
+                      <Text className="text-white text-center font-medium text-sm">
+                        🔄 Resume This Session
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })
+          )}
+
+          {resumeError && (
+            <Text className="text-red-600 text-sm mt-2">{resumeError}</Text>
           )}
         </View>
 
@@ -156,11 +263,13 @@ export default function EmployeeDetail() {
           {hours.length > 0 ? (
             <HourlyTimeline updates={updates} hours={hours} />
           ) : (
-            <Text className="text-gray-400">No updates logged on this day</Text>
+            <Text className="text-gray-400">
+              No updates logged on this day
+            </Text>
           )}
         </View>
 
-        {/* Tasks + assign */}
+        {/* Tasks + assign + comments */}
         <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-xl font-semibold text-gray-900">
@@ -192,7 +301,39 @@ export default function EmployeeDetail() {
 
           {tasks.length > 0 ? (
             tasks.map((t) => (
-              <TaskItem key={t.id} task={t} onSetStatus={setStatus} />
+              <View key={t.id}>
+                <TaskItem
+                  task={t}
+                  onSetStatus={async (task, status) => {
+                    await setStatus(task, status);
+                  }}
+                />
+                {/* Overtime reason */}
+                {t.overtime_reason && (
+                  <View className="ml-8 -mt-1 mb-1 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    <Text className="text-xs text-red-700">
+                      ⏰ Overtime reason: {t.overtime_reason}
+                    </Text>
+                  </View>
+                )}
+                {/* Comments */}
+                <View className="ml-8 mb-2">
+                  <TaskComments
+                    comments={expandedTaskId === t.id ? comments : []}
+                    onAdd={addComment}
+                    canComment={true}
+                  />
+                  {expandedTaskId !== t.id && (
+                    <TouchableOpacity
+                      onPress={() => setExpandedTaskId(t.id)}
+                    >
+                      <Text className="text-xs text-gray-400 mt-1">
+                        💬 View / add comments
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
             ))
           ) : (
             <Text className="text-gray-400">No open tasks</Text>

@@ -1,6 +1,8 @@
 /**
  * Clock in / pause / resume / clock out card with live elapsed readouts.
- * The ticking counters are display-only; stored times are server-side.
+ * Supports multiple sessions per day — after clocking out, the user can
+ * clock in again. Shows session count when > 1. The ticking counters are
+ * display-only; stored times are server-side.
  */
 
 import React, { useEffect, useState } from "react";
@@ -15,7 +17,10 @@ import {
 
 interface ClockCardProps {
   workSession: WorkSession | null;
+  /** All sessions today (for multi-session display). */
+  sessions?: WorkSession[];
   breaks: SessionBreak[];
+  canClockIn: boolean;
   onClockIn: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -51,7 +56,9 @@ const Button = ({
 
 export default function ClockCard({
   workSession,
+  sessions = [],
   breaks,
+  canClockIn,
   onClockIn,
   onPause,
   onResume,
@@ -68,19 +75,30 @@ export default function ClockCard({
   }, [running]);
 
   const status = workSession?.status ?? "none";
+  const sessionCount = sessions.length;
+
   const statusChip =
     status === "active"
       ? { label: "Working", classes: "bg-green-100 text-green-700" }
       : status === "paused"
       ? { label: "On break", classes: "bg-amber-100 text-amber-700" }
       : status === "completed"
-      ? { label: "Day complete", classes: "bg-gray-200 text-gray-600" }
+      ? { label: "Clocked Out", classes: "bg-gray-200 text-gray-600" }
       : { label: "Not started", classes: "bg-gray-100 text-gray-500" };
 
   return (
     <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
       <View className="flex-row items-center justify-between mb-4">
-        <Text className="text-xl font-semibold text-gray-900">Work Clock</Text>
+        <View className="flex-row items-center gap-2">
+          <Text className="text-xl font-semibold text-gray-900">Work Clock</Text>
+          {sessionCount > 1 && (
+            <View className="rounded-full px-2 py-0.5 bg-blue-100">
+              <Text className="text-xs font-medium text-blue-700">
+                Session {sessionCount}
+              </Text>
+            </View>
+          )}
+        </View>
         <View className={`rounded-full px-3 py-1 ${statusChip.classes}`}>
           <Text className={`text-sm font-medium ${statusChip.classes}`}>
             {statusChip.label}
@@ -88,7 +106,7 @@ export default function ClockCard({
         </View>
       </View>
 
-      {workSession ? (
+      {workSession && running ? (
         <View className="mb-5">
           <Text className="text-4xl font-bold text-gray-900 text-center mb-1">
             {formatClock(workedSecondsOf(workSession, breaks))}
@@ -97,6 +115,18 @@ export default function ClockCard({
             worked since {formatTime(workSession.clock_in_at)}
             {breaks.length > 0 &&
               ` · breaks ${formatClock(breakSecondsOf(breaks))}`}
+          </Text>
+        </View>
+      ) : workSession?.status === "completed" ? (
+        <View className="mb-5">
+          <Text className="text-2xl font-bold text-gray-600 text-center mb-1">
+            {formatClock(workedSecondsOf(workSession, breaks))}
+          </Text>
+          <Text className="text-gray-500 text-center text-sm">
+            {formatTime(workSession.clock_in_at)} –{" "}
+            {workSession.clock_out_at
+              ? formatTime(workSession.clock_out_at)
+              : ""}
           </Text>
         </View>
       ) : (
@@ -112,8 +142,15 @@ export default function ClockCard({
       )}
 
       <View className="flex-row gap-3">
-        {status === "none" && (
+        {canClockIn && status === "none" && (
           <Button label="Clock In" onPress={onClockIn} variant="primary" />
+        )}
+        {canClockIn && status === "completed" && (
+          <Button
+            label="Clock In Again"
+            onPress={onClockIn}
+            variant="primary"
+          />
         )}
         {status === "active" && (
           <>
@@ -126,17 +163,6 @@ export default function ClockCard({
             <Button label="Resume" onPress={onResume} variant="primary" />
             <Button label="Clock Out" onPress={onClockOut} variant="danger" />
           </>
-        )}
-        {status === "completed" && (
-          <View className="flex-1 bg-gray-50 rounded-lg py-4">
-            <Text className="text-center text-gray-500">
-              You clocked out at{" "}
-              {workSession?.clock_out_at
-                ? formatTime(workSession.clock_out_at)
-                : ""}
-              . See you tomorrow!
-            </Text>
-          </View>
         )}
       </View>
     </View>

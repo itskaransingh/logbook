@@ -1,13 +1,14 @@
 /**
  * Admin dashboard row: team member name (with an Admin pill for admin
- * accounts), live status chip, hours today and this week. Tapping opens
- * the member detail screen.
+ * accounts), live status chip, user presence status, hours today and
+ * this week. Tapping opens the member detail screen.
  */
 
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { EmployeeOverview } from "../../hooks/useEmployees";
-import { formatDuration, formatTime, workedSeconds } from "../../lib/time";
+import { UserStatus } from "../../types/logbook";
+import { formatDuration, formatTime } from "../../lib/time";
 
 const STATUS_CHIPS = {
   active: { label: "Working", classes: "bg-green-100 text-green-700" },
@@ -18,12 +19,14 @@ const STATUS_CHIPS = {
 
 interface EmployeeCardProps {
   employee: EmployeeOverview;
+  userStatus?: UserStatus | null;
   onPress: () => void;
 }
 
-export default function EmployeeCard({ employee, onPress }: EmployeeCardProps) {
+export default function EmployeeCard({ employee, userStatus, onPress }: EmployeeCardProps) {
   const { profile, today, weekWorkedSeconds } = employee;
   const chip = STATUS_CHIPS[today?.status ?? "none"];
+  const todayWorked = today ? today.total_seconds - today.break_seconds : 0;
 
   return (
     <TouchableOpacity
@@ -47,11 +50,20 @@ export default function EmployeeCard({ employee, onPress }: EmployeeCardProps) {
           </Text>
         </View>
       </View>
+
+      {/* User presence status */}
+      {userStatus && (
+        <View className="flex-row items-center gap-1.5 mb-2">
+          <Text className="text-sm">{userStatus.emoji}</Text>
+          <Text className="text-sm text-gray-600">{userStatus.label}</Text>
+        </View>
+      )}
+
       <View className="flex-row gap-6">
         <View>
           <Text className="text-xs text-gray-400 uppercase">Today</Text>
           <Text className="text-gray-800 font-medium">
-            {today ? formatDuration(workedSeconds(today)) : "—"}
+            {today ? formatDuration(todayWorked) : "—"}
           </Text>
         </View>
         <View>
@@ -62,9 +74,13 @@ export default function EmployeeCard({ employee, onPress }: EmployeeCardProps) {
         </View>
         {today && (
           <View>
-            <Text className="text-xs text-gray-400 uppercase">Clocked in</Text>
+            <Text className="text-xs text-gray-400 uppercase">
+              {today.session_count > 1
+                ? `${today.session_count} sessions`
+                : "Clocked in"}
+            </Text>
             <Text className="text-gray-800 font-medium">
-              {formatTime(today.clock_in_at)}
+              {formatTime(today.first_clock_in)}
             </Text>
           </View>
         )}

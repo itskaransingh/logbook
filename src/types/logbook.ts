@@ -72,7 +72,47 @@ export interface Task {
   status: TaskStatus;
   /** Local work date (YYYY-MM-DD) the task is planned for. */
   planned_for: string;
+  /** Optional time estimate in minutes. */
+  estimated_minutes: number | null;
+  /** Reason provided when completing a task that exceeded its estimate. */
+  overtime_reason: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TaskTimeEntry {
+  id: string;
+  task_id: string;
+  user_id: string;
+  started_at: string;
+  stopped_at: string | null;
+  created_at: string;
+}
+
+export interface UserStatus {
+  user_id: string;
+  emoji: string;
+  label: string;
+  updated_at: string;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
+/** Aggregate of all work sessions for a user on a given day. */
+export interface DailySessionSummary {
+  user_id: string;
+  work_date: string;
+  first_clock_in: string;
+  last_clock_out: string | null;
+  status: SessionStatus;
+  session_count: number;
+  total_seconds: number;
+  break_seconds: number;
 }

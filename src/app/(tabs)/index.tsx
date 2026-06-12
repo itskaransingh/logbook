@@ -1,8 +1,9 @@
 /**
  * @fileoverview Today screen — the employee's home base.
- * Work clock (in/pause/resume/out), focus timer, and the hour-by-hour
- * timeline of updates for today. Clocking out goes through a "plan for
- * tomorrow" modal that can save tasks for the next work day.
+ * Work clock (in/pause/resume/out), status picker, active task timers
+ * banner, focus timer, and the hour-by-hour timeline of updates for
+ * today. Clocking out goes through a "plan for tomorrow" modal that
+ * can save tasks for the next work day.
  */
 
 import React, { useState } from "react";
@@ -11,12 +12,17 @@ import { useSession } from "@/context/SessionProvider";
 import { useWorkSession } from "@/src/hooks/useWorkSession";
 import { useHourlyUpdates } from "@/src/hooks/useHourlyUpdates";
 import { useTasks } from "@/src/hooks/useTasks";
+import { useTaskTimer } from "@/src/hooks/useTaskTimer";
+import { useUserStatus } from "@/src/hooks/useUserStatus";
+import { useWorkNotifications } from "@/src/hooks/useWorkNotifications";
 import ClockCard from "@/src/components/logbook/ClockCard";
 import FocusTimer from "@/src/components/logbook/FocusTimer";
 import HourlyTimeline from "@/src/components/logbook/HourlyTimeline";
 import PlanTomorrowModal, {
   TaskDraft,
 } from "@/src/components/logbook/PlanTomorrowModal";
+import ActiveTimersBanner from "@/src/components/logbook/ActiveTimersBanner";
+import StatusPicker from "@/src/components/logbook/StatusPicker";
 import { workDateOffset } from "@/src/lib/dates";
 
 /** Hours from clock-in through the current hour (for today's session). */
@@ -33,7 +39,9 @@ export default function TodayScreen() {
   const { profile } = useSession();
   const {
     workSession,
+    sessions,
     breaks,
+    canClockIn,
     error,
     clockIn,
     pause,
@@ -42,9 +50,29 @@ export default function TodayScreen() {
   } = useWorkSession();
   const { updates, saveUpdate } = useHourlyUpdates();
   const { tasks, createTask } = useTasks();
+  const taskTimer = useTaskTimer();
+  const userStatus = useUserStatus();
+  const notifications = useWorkNotifications();
   const [planVisible, setPlanVisible] = useState(false);
 
   const firstName = profile?.full_name?.split(" ")[0];
+
+  const handleClockIn = async () => {
+    await clockIn();
+    await notifications.onClockIn();
+    await userStatus.setStatus("🟢", "Working");
+  };
+
+  const handlePause = async () => {
+    await pause();
+    await notifications.onPause();
+  };
+
+  const handleResume = async () => {
+    await resume();
+    await notifications.onResume();
+    await userStatus.setStatus("🟢", "Working");
+  };
 
   const confirmClockOut = async (drafts: TaskDraft[]) => {
     const tomorrow = workDateOffset(1);
@@ -56,8 +84,13 @@ export default function TodayScreen() {
       });
     }
     await clockOut();
+    await notifications.onClockOut();
+    await userStatus.clearStatus();
     setPlanVisible(false);
   };
+
+  const isClockedIn =
+    workSession != null && workSession.status !== "completed";
 
   return (
     <ScrollView className="flex-1 bg-gray-50">
@@ -75,18 +108,38 @@ export default function TodayScreen() {
 
         <ClockCard
           workSession={workSession}
+          sessions={sessions}
           breaks={breaks}
-          onClockIn={clockIn}
-          onPause={pause}
-          onResume={resume}
+          canClockIn={canClockIn}
+          onClockIn={handleClockIn}
+          onPause={handlePause}
+          onResume={handleResume}
           onClockOut={() => setPlanVisible(true)}
           error={error}
         />
+
+        {/* Status picker — visible when clocked in */}
+        {isClockedIn && (
+          <View className="mb-4 -mt-2">
+            <StatusPicker
+              current={userStatus.status}
+              onSelect={userStatus.setStatus}
+            />
+          </View>
+        )}
 
         <PlanTomorrowModal
           visible={planVisible}
           onCancel={() => setPlanVisible(false)}
           onConfirm={confirmClockOut}
+        />
+
+        {/* Active task timers banner */}
+        <ActiveTimersBanner
+          tasks={tasks}
+          runningTaskIds={taskTimer.runningTaskIds}
+          totalSeconds={taskTimer.totalSeconds}
+          onStop={taskTimer.stopTimer}
         />
 
         <FocusTimer tasks={tasks} />
