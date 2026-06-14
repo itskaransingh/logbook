@@ -141,9 +141,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const isOwner = org.owner_id === caller.id;
     const isSuperAdminInOrg =
       callerProfile?.role === "super_admin" && callerProfile?.org_id === orgId;
+    const isAdminInOrg =
+      callerProfile?.role === "admin" && callerProfile?.org_id === orgId;
 
-    if (!isOwner && !isSuperAdminInOrg) {
+    if (!isOwner && !isSuperAdminInOrg && !isAdminInOrg) {
       return jsonResponse({ error: "Not authorized to add members to this organization" } as ErrorResponse, 403);
+    }
+
+    if (isAdminInOrg && !isOwner && !isSuperAdminInOrg && role !== "employee") {
+      return jsonResponse({ error: "Admins can only create employee accounts" } as ErrorResponse, 403);
     }
 
     const email = `${username}@${org.slug}.logbook`;
@@ -176,6 +182,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       await serviceClient
         .from("profiles")
         .update({ role })
+        .eq("id", data.user.id);
+    }
+
+    // Auto-assign employee to the creating admin
+    if (isAdminInOrg) {
+      await serviceClient
+        .from("profiles")
+        .update({ assigned_admin_id: caller.id })
         .eq("id", data.user.id);
     }
 
