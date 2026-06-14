@@ -34,7 +34,7 @@ const ROLES: { value: Role; label: string }[] = [
 
 export default function NewEmployee() {
   const router = useRouter();
-  const { currentOrg } = useSession();
+  const { currentOrg, isSuperAdmin } = useSession();
 
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
@@ -182,7 +182,7 @@ export default function NewEmployee() {
           {/* Role */}
           <Text className="text-sm font-medium text-gray-700 mb-2">Role</Text>
           <View className="flex-row gap-2 mb-4">
-            {ROLES.map((r) => {
+            {ROLES.filter((r) => isSuperAdmin || r.value === "employee").map((r) => {
               const active = role === r.value;
               return (
                 <TouchableOpacity
