@@ -2,7 +2,6 @@
 
 An internal employee work-tracking app for small teams, built with Expo (React Native + Web) and Supabase. Employees clock in, track focus time, log what they did each hour, and work from a prioritized task list that carries over day to day. Cofounders (admins) get a live team dashboard — while their own activity stays private.
 
-
 ## How it works
 
 ### 👤 Employees
