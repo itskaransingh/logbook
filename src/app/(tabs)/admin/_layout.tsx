@@ -19,6 +19,7 @@ export default function AdminLayout() {
       <Stack.Screen name="index" options={{ title: "Team" }} />
       <Stack.Screen name="[id]" options={{ title: "Employee" }} />
       <Stack.Screen name="new-user" options={{ title: "New Employee" }} />
+      <Stack.Screen name="manage" options={{ title: "Manage" }} />
     </Stack>
   );
 }

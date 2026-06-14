@@ -74,9 +74,9 @@ export default function HourlyTimeline({
             </View>
             <View className="flex-1">
               {editing ? (
-                <View className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <View className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
                   <TextInput
-                    className="bg-white border border-gray-300 rounded-lg p-3 text-gray-900 mb-2"
+                    className="bg-white border border-gray-200 rounded-lg p-3 text-gray-900 mb-2"
                     value={draft}
                     onChangeText={setDraft}
                     placeholder="What did you work on this hour?"
@@ -89,7 +89,7 @@ export default function HourlyTimeline({
                   )}
                   <View className="flex-row gap-2">
                     <TouchableOpacity
-                      className="bg-blue-600 rounded-lg py-2 px-4 active:bg-blue-700"
+                      className="bg-indigo-600 rounded-lg py-2 px-4 active:bg-indigo-700"
                       onPress={save}
                       disabled={saving}
                     >

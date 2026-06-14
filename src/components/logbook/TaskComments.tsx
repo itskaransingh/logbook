@@ -11,12 +11,15 @@ interface TaskCommentsProps {
   comments: CommentWithAuthor[];
   onAdd: (content: string) => Promise<string | null>;
   canComment: boolean;
+  /** Called when the user taps to expand the comment thread. */
+  onExpand?: () => void;
 }
 
 export default function TaskComments({
   comments,
   onAdd,
   canComment,
+  onExpand,
 }: TaskCommentsProps) {
   const [expanded, setExpanded] = useState(false);
   const [input, setInput] = useState("");
@@ -40,7 +43,7 @@ export default function TaskComments({
     return (
       <TouchableOpacity
         className="flex-row items-center gap-1 mt-1"
-        onPress={() => setExpanded(true)}
+        onPress={() => { setExpanded(true); onExpand?.(); }}
       >
         <Text className="text-xs text-gray-400">
           💬 {comments.length > 0 ? comments.length : "Comment"}
@@ -70,10 +73,10 @@ export default function TaskComments({
             <Text className="text-xs font-semibold text-gray-700">
               {c.author_name ?? "Unknown"}
             </Text>
-            {c.author_role === "admin" && (
-              <View className="rounded-full px-1.5 py-0.5 bg-indigo-100">
-                <Text className="text-[10px] font-medium text-indigo-700">
-                  Admin
+            {(c.author_role === "admin" || c.author_role === "super_admin") && (
+              <View className={`rounded-full px-1.5 py-0.5 ${c.author_role === "super_admin" ? "bg-purple-100" : "bg-indigo-100"}`}>
+                <Text className={`text-[10px] font-medium ${c.author_role === "super_admin" ? "text-purple-700" : "text-indigo-700"}`}>
+                  {c.author_role === "super_admin" ? "Co-Founder" : "Admin"}
                 </Text>
               </View>
             )}
@@ -91,7 +94,7 @@ export default function TaskComments({
       {canComment && (
         <View className="flex-row items-center gap-2 mt-1">
           <TextInput
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 bg-white"
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-900 bg-white"
             value={input}
             onChangeText={setInput}
             placeholder="Add a comment..."
@@ -103,7 +106,7 @@ export default function TaskComments({
             className={`rounded-lg px-3 py-1.5 ${
               saving || !input.trim()
                 ? "bg-gray-200"
-                : "bg-blue-600 active:bg-blue-700"
+                : "bg-indigo-600 active:bg-indigo-700"
             }`}
             onPress={submit}
             disabled={saving || !input.trim()}

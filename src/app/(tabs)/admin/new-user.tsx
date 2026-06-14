@@ -1,7 +1,7 @@
 /**
- * Create an employee account (admin only). Calls the admin-create-user
- * edge function, which verifies the caller's admin role server-side.
- * New accounts are always employees; admins are promoted via SQL/Studio.
+ * Create an Org Member account. Owner/super_admin only.
+ * Owner types username + name + role + password; the server assembles
+ * username@orgslug.logbook and stores it in Supabase Auth.
  */
 
 import React, { useState } from "react";
@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
+import { useSession } from "@/context/SessionProvider";
+import { Role } from "@/src/types/logbook";
 
 const generatePassword = (): string => {
   const chars =
@@ -24,11 +26,20 @@ const generatePassword = (): string => {
   ).join("");
 };
 
+const ROLES: { value: Role; label: string }[] = [
+  { value: "employee", label: "Employee" },
+  { value: "admin", label: "Admin" },
+  { value: "super_admin", label: "Super Admin" },
+];
+
 export default function NewEmployee() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const { currentOrg } = useSession();
+
+  const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<Role>("employee");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{
@@ -36,17 +47,37 @@ export default function NewEmployee() {
     password: string;
   } | null>(null);
 
+  const cleanUsername = username.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const emailPreview = currentOrg
+    ? `${cleanUsername || "username"}@${currentOrg.slug}.logbook`
+    : "";
+  const usernameValid = /^[a-z0-9]{2,30}$/.test(cleanUsername);
+
+  const valid =
+    usernameValid &&
+    fullName.trim().length > 0 &&
+    password.length >= 6 &&
+    !!currentOrg;
+
   const submit = async () => {
+    if (!valid || !currentOrg) return;
     setLoading(true);
     setError(null);
+
     const { data, error: fnError } = await supabase.functions.invoke(
       "admin-create-user",
-      { body: { email: email.trim(), password, full_name: fullName.trim() } }
+      {
+        body: {
+          username: cleanUsername,
+          full_name: fullName.trim(),
+          password,
+          org_id: currentOrg.id,
+          role,
+        },
+      }
     );
     setLoading(false);
 
-    // supabase-js surfaces non-2xx as FunctionsHttpError; the JSON body
-    // carries our message.
     if (fnError) {
       let message = "Failed to create user";
       try {
@@ -62,7 +93,7 @@ export default function NewEmployee() {
       setError(data.error);
       return;
     }
-    setCreated({ email: email.trim(), password });
+    setCreated({ email: emailPreview.replace("username", cleanUsername), password });
   };
 
   if (created) {
@@ -74,8 +105,8 @@ export default function NewEmployee() {
               ✓ Account created
             </Text>
             <Text className="text-green-700 mb-4">
-              Share these credentials with the employee now — the password is
-              not shown again.
+              Share these credentials with the member — the password is not
+              shown again.
             </Text>
             <View className="bg-white rounded-lg border border-green-200 p-4">
               <Text className="text-gray-500 text-sm">Email</Text>
@@ -89,7 +120,7 @@ export default function NewEmployee() {
             </View>
           </View>
           <TouchableOpacity
-            className="bg-blue-600 rounded-lg py-3 active:bg-blue-700"
+            className="bg-indigo-600 rounded-xl py-3 active:bg-indigo-700"
             onPress={() => router.back()}
           >
             <Text className="text-white text-center font-semibold">
@@ -101,43 +132,76 @@ export default function NewEmployee() {
     );
   }
 
-  const valid =
-    email.trim().length > 3 && fullName.trim().length > 0 && password.length >= 6;
-
   return (
     <ScrollView className="flex-1 bg-gray-50">
       <View className="px-4 py-6 max-w-2xl w-full self-center">
         <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <Text className="text-xl font-semibold text-gray-900 mb-6">
-            New Employee Account
+            New Member Account
           </Text>
 
-          <Text className="text-base font-medium text-gray-700 mb-2">
+          {/* Full name */}
+          <Text className="text-sm font-medium text-gray-700 mb-1">
             Full Name
           </Text>
           <TextInput
-            className="border border-gray-300 rounded-lg p-4 text-gray-900 mb-4"
+            className="border border-gray-200 rounded-lg p-4 text-gray-900 mb-4"
             value={fullName}
             onChangeText={setFullName}
             placeholder="Jane Doe"
             placeholderTextColor="#9CA3AF"
+            autoCapitalize="words"
           />
 
-          <Text className="text-base font-medium text-gray-700 mb-2">
-            Email Address
+          {/* Username → email preview */}
+          <Text className="text-sm font-medium text-gray-700 mb-1">
+            Username
           </Text>
           <TextInput
-            className="border border-gray-300 rounded-lg p-4 text-gray-900 mb-4"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="jane@company.com"
+            className="border border-gray-200 rounded-lg p-4 text-gray-900 mb-1"
+            value={username}
+            onChangeText={setUsername}
+            placeholder="e.g. gladwin"
             placeholderTextColor="#9CA3AF"
             autoCapitalize="none"
-            keyboardType="email-address"
             autoCorrect={false}
           />
+          <View className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-1">
+            <Text className="text-xs text-gray-400">Login email</Text>
+            <Text className="text-sm font-mono text-gray-700" selectable>
+              {emailPreview}
+            </Text>
+          </View>
+          {username.length > 0 && !usernameValid && (
+            <Text className="text-xs text-red-500 mb-3">
+              2–30 lowercase letters and numbers only.
+            </Text>
+          )}
+          {usernameValid && <View className="mb-3" />}
 
-          <Text className="text-base font-medium text-gray-700 mb-2">
+          {/* Role */}
+          <Text className="text-sm font-medium text-gray-700 mb-2">Role</Text>
+          <View className="flex-row gap-2 mb-4">
+            {ROLES.map((r) => {
+              const active = role === r.value;
+              return (
+                <TouchableOpacity
+                  key={r.value}
+                  className={`rounded-lg px-3 py-2 border ${active ? "bg-indigo-600 border-indigo-600" : "border-gray-200 bg-white"}`}
+                  onPress={() => setRole(r.value)}
+                >
+                  <Text
+                    className={`text-xs font-medium ${active ? "text-white" : "text-gray-600"}`}
+                  >
+                    {r.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Password */}
+          <Text className="text-sm font-medium text-gray-700 mb-1">
             Temporary Password
           </Text>
           <View className="flex-row gap-2 mb-2">
@@ -157,7 +221,7 @@ export default function NewEmployee() {
             </TouchableOpacity>
           </View>
           <Text className="text-sm text-gray-500 mb-4">
-            You'll share this with the employee; they sign in with it.
+            Share this with the member; they sign in with it.
           </Text>
 
           {error && (
@@ -167,18 +231,14 @@ export default function NewEmployee() {
           )}
 
           <TouchableOpacity
-            className={`rounded-lg py-4 ${
-              loading || !valid ? "bg-gray-300" : "bg-blue-600 active:bg-blue-700"
-            }`}
+            className={`rounded-xl py-4 ${loading || !valid ? "bg-gray-100" : "bg-indigo-600 active:bg-indigo-700"}`}
             onPress={submit}
             disabled={loading || !valid}
           >
             <Text
-              className={`text-center font-semibold ${
-                loading || !valid ? "text-gray-500" : "text-white"
-              }`}
+              className={`text-center font-semibold ${loading || !valid ? "text-gray-400" : "text-white"}`}
             >
-              {loading ? "Creating..." : "Create Account"}
+              {loading ? "Creating…" : "Create Account"}
             </Text>
           </TouchableOpacity>
         </View>

@@ -50,12 +50,12 @@ export default function Account() {
             </Text>
             <View
               className={`rounded-full px-3 py-1 ${
-                isAdmin ? "bg-purple-100" : "bg-blue-100"
+                isAdmin ? "bg-purple-100" : "bg-indigo-50"
               }`}
             >
               <Text
                 className={`text-sm font-medium ${
-                  isAdmin ? "text-purple-700" : "text-blue-700"
+                  isAdmin ? "text-purple-700" : "text-indigo-600"
                 }`}
               >
                 {isAdmin ? "Admin" : "Employee"}
@@ -74,12 +74,34 @@ export default function Account() {
             Full Name
           </Text>
           <TextInput
-            className="border border-gray-300 rounded-lg p-4 text-gray-900 mb-4"
+            className="border border-gray-200 rounded-xl p-4 text-gray-900 mb-4"
             value={fullName}
             onChangeText={setFullName}
             placeholder="Your name"
             placeholderTextColor="#9CA3AF"
           />
+
+          {profile?.department ? (
+            <>
+              <Text className="text-base font-medium text-gray-700 mb-2">
+                Department
+              </Text>
+              <View className="border border-gray-200 rounded-lg p-4 bg-gray-50 mb-4">
+                <Text className="text-gray-500">{profile.department}</Text>
+              </View>
+            </>
+          ) : null}
+
+          {profile?.designation ? (
+            <>
+              <Text className="text-base font-medium text-gray-700 mb-2">
+                Designation
+              </Text>
+              <View className="border border-gray-200 rounded-lg p-4 bg-gray-50 mb-4">
+                <Text className="text-gray-500">{profile.designation}</Text>
+              </View>
+            </>
+          ) : null}
 
           {message && (
             <Text className="text-green-700 text-sm mb-3">{message}</Text>
@@ -87,15 +109,15 @@ export default function Account() {
           {error && <Text className="text-red-600 text-sm mb-3">{error}</Text>}
 
           <TouchableOpacity
-            className={`rounded-lg py-3 ${
-              updating ? "bg-gray-300" : "bg-blue-600 active:bg-blue-700"
+            className={`rounded-xl py-3 ${
+              updating ? "bg-gray-100" : "bg-indigo-600 active:bg-indigo-700"
             }`}
             onPress={updateProfile}
             disabled={updating}
           >
             <Text
               className={`text-center font-semibold ${
-                updating ? "text-gray-500" : "text-white"
+                updating ? "text-gray-400" : "text-white"
               }`}
             >
               {updating ? "Saving..." : "Save"}

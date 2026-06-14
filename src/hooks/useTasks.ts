@@ -36,7 +36,10 @@ export function useTasks(userId?: string) {
       .from("tasks")
       .select("*")
       .eq("user_id", targetUser)
-      .or(`status.neq.done,completed_at.gte.${startOfLocalDayISO()}`)
+      .or(
+        `status.in.(todo,in_progress,pending_approval,needs_changes),` +
+        `and(status.in.(approved,done),completed_at.gte.${startOfLocalDayISO()})`
+      )
       .order("created_at", { ascending: true });
     if (error) {
       setError(error.message);
@@ -98,7 +101,7 @@ export function useTasks(userId?: string) {
       /** Pre-computed tracked seconds from useTaskTimer. */
       trackedSeconds?: number
     ): Promise<{ error: string | null; needsOvertimeReason: boolean }> => {
-      // Check if completing a task that exceeded its estimate
+      // Overtime check only applies to legacy 'done' path (not pending_approval)
       if (
         status === "done" &&
         task.estimated_minutes &&

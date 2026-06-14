@@ -39,7 +39,7 @@ const Button = ({
 }) => {
   const bg =
     variant === "primary"
-      ? "bg-blue-600 active:bg-blue-700"
+      ? "bg-indigo-600 active:bg-indigo-700"
       : variant === "danger"
       ? "bg-red-600 active:bg-red-700"
       : "bg-gray-100 active:bg-gray-200 border border-gray-300";
@@ -92,8 +92,8 @@ export default function ClockCard({
         <View className="flex-row items-center gap-2">
           <Text className="text-xl font-semibold text-gray-900">Work Clock</Text>
           {sessionCount > 1 && (
-            <View className="rounded-full px-2 py-0.5 bg-blue-100">
-              <Text className="text-xs font-medium text-blue-700">
+            <View className="rounded-full px-2 py-0.5 bg-gray-100">
+              <Text className="text-xs font-medium text-gray-500">
                 Session {sessionCount}
               </Text>
             </View>

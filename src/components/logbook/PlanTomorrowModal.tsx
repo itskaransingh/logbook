@@ -87,7 +87,7 @@ export default function PlanTomorrowModal({
           </Text>
 
           <TextInput
-            className="border border-gray-300 rounded-lg p-3 text-gray-900 mb-3"
+            className="border border-gray-200 rounded-lg p-3 text-gray-900 mb-3"
             value={title}
             onChangeText={setTitle}
             placeholder="What's first tomorrow?"
@@ -100,8 +100,8 @@ export default function PlanTomorrowModal({
                 key={p}
                 className={`flex-1 rounded-lg py-2 border ${
                   priority === p
-                    ? "bg-blue-600 border-blue-600"
-                    : "bg-white border-gray-300"
+                    ? "bg-indigo-600 border-indigo-600"
+                    : "bg-white border-gray-200"
                 }`}
                 onPress={() => setPriority(p)}
               >
@@ -118,7 +118,7 @@ export default function PlanTomorrowModal({
           <TouchableOpacity
             className={`rounded-lg py-2 mb-4 border ${
               title.trim()
-                ? "border-blue-600 active:bg-blue-50"
+                ? "border-indigo-600 active:bg-indigo-50"
                 : "border-gray-200"
             }`}
             onPress={addDraft}
@@ -126,7 +126,7 @@ export default function PlanTomorrowModal({
           >
             <Text
               className={`text-center text-sm font-semibold ${
-                title.trim() ? "text-blue-600" : "text-gray-400"
+                title.trim() ? "text-indigo-600" : "text-gray-400"
               }`}
             >
               + Add to plan

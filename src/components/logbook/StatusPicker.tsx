@@ -54,7 +54,7 @@ export default function StatusPicker({ current, onSelect }: StatusPickerProps) {
             <TouchableOpacity
               key={preset.label}
               className={`flex-row items-center gap-2 rounded-lg px-3 py-2 ${
-                active ? "bg-blue-100" : "active:bg-gray-100"
+                active ? "bg-indigo-50" : "active:bg-gray-100"
               }`}
               onPress={() => select(preset.emoji, preset.label)}
               disabled={saving}
@@ -62,7 +62,7 @@ export default function StatusPicker({ current, onSelect }: StatusPickerProps) {
               <Text className="text-base">{preset.emoji}</Text>
               <Text
                 className={`text-sm ${
-                  active ? "text-blue-700 font-medium" : "text-gray-700"
+                  active ? "text-indigo-700 font-medium" : "text-gray-700"
                 }`}
               >
                 {preset.label}
@@ -76,7 +76,7 @@ export default function StatusPicker({ current, onSelect }: StatusPickerProps) {
       <View className="flex-row items-center gap-2">
         <Text className="text-base">✍️</Text>
         <TextInput
-          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900"
           value={customLabel}
           onChangeText={setCustomLabel}
           placeholder="Custom status..."
@@ -88,7 +88,7 @@ export default function StatusPicker({ current, onSelect }: StatusPickerProps) {
         />
         {customLabel.trim() ? (
           <TouchableOpacity
-            className="bg-blue-600 rounded-lg px-3 py-2"
+            className="bg-indigo-600 rounded-lg px-3 py-2"
             onPress={() => select("✍️", customLabel.trim())}
             disabled={saving}
           >

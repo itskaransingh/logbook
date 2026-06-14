@@ -104,8 +104,8 @@ export default function OvertimeReasonModal({
                 key={s}
                 className={`rounded-full px-3 py-1.5 border ${
                   reason === s
-                    ? "bg-blue-600 border-blue-600"
-                    : "bg-white border-gray-300"
+                    ? "bg-indigo-600 border-indigo-600"
+                    : "bg-white border-gray-200"
                 }`}
                 onPress={() => setReason(s)}
               >
@@ -121,7 +121,7 @@ export default function OvertimeReasonModal({
           </View>
 
           <TextInput
-            className="border border-gray-300 rounded-lg p-3 text-gray-900 mb-4"
+            className="border border-gray-200 rounded-lg p-3 text-gray-900 mb-4"
             value={reason}
             onChangeText={setReason}
             placeholder="Or type your own reason..."
@@ -133,15 +133,15 @@ export default function OvertimeReasonModal({
           <TouchableOpacity
             className={`rounded-lg py-3 mb-2 ${
               saving || !reason.trim()
-                ? "bg-gray-300"
-                : "bg-blue-600 active:bg-blue-700"
+                ? "bg-gray-100"
+                : "bg-indigo-600 active:bg-indigo-700"
             }`}
             onPress={confirm}
             disabled={saving || !reason.trim()}
           >
             <Text
               className={`text-center font-semibold ${
-                saving || !reason.trim() ? "text-gray-500" : "text-white"
+                saving || !reason.trim() ? "text-gray-400" : "text-white"
               }`}
             >
               {saving ? "Completing..." : "Complete Task"}

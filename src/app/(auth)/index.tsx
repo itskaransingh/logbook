@@ -16,9 +16,10 @@ import {
   Platform,
 } from "react-native";
 import { supabase } from "../../../lib/supabase";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 
 export default function SignIn() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,13 +58,13 @@ export default function SignIn() {
 
         <View className="flex-1 justify-center px-6 py-12">
           <View className="items-center mb-12">
-            <View className="bg-blue-100 rounded-full p-6 mb-6">
-              <Text className="text-4xl">📒</Text>
+            <View className="w-14 h-14 bg-gray-900 rounded-2xl items-center justify-center mb-5">
+              <Text className="text-indigo-400 font-black text-2xl">L</Text>
             </View>
-            <Text className="text-3xl font-bold text-gray-900 mb-2 text-center">
+            <Text className="text-3xl font-bold text-gray-900 tracking-tight mb-2 text-center">
               Logbook
             </Text>
-            <Text className="text-gray-600 text-center leading-6">
+            <Text className="text-gray-500 text-center leading-6">
               Sign in with the credentials your admin gave you
             </Text>
           </View>
@@ -78,7 +79,7 @@ export default function SignIn() {
                 Email Address
               </Text>
               <TextInput
-                className="border border-gray-300 rounded-lg p-4 text-base text-gray-900 bg-white"
+                className="border border-gray-200 rounded-xl p-4 text-base text-gray-900 bg-white"
                 onChangeText={setEmail}
                 value={email}
                 placeholder="your@email.com"
@@ -94,7 +95,7 @@ export default function SignIn() {
                 Password
               </Text>
               <TextInput
-                className="border border-gray-300 rounded-lg p-4 text-base text-gray-900 bg-white"
+                className="border border-gray-200 rounded-xl p-4 text-base text-gray-900 bg-white"
                 onChangeText={setPassword}
                 value={password}
                 secureTextEntry={true}
@@ -114,10 +115,10 @@ export default function SignIn() {
             )}
 
             <TouchableOpacity
-              className={`rounded-lg py-4 px-6 ${
+              className={`rounded-xl py-4 px-6 ${
                 loading || !email || !password
-                  ? "bg-gray-300"
-                  : "bg-blue-600 active:bg-blue-700"
+                  ? "bg-gray-100"
+                  : "bg-indigo-600 active:bg-indigo-700"
               }`}
               onPress={signInWithEmail}
               disabled={loading || !email || !password}
@@ -125,7 +126,7 @@ export default function SignIn() {
               <Text
                 className={`text-center font-semibold ${
                   loading || !email || !password
-                    ? "text-gray-500"
+                    ? "text-gray-400"
                     : "text-white"
                 }`}
               >
@@ -134,11 +135,16 @@ export default function SignIn() {
             </TouchableOpacity>
           </View>
 
-          <View className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-            <Text className="text-blue-700 text-sm text-center leading-5">
-              Need an account? Ask one of the founders to create one for you.
+          <TouchableOpacity
+            className="bg-indigo-50 rounded-xl border border-indigo-100 p-4"
+            onPress={() => router.push("/(auth)/signup")}
+          >
+            <Text className="text-indigo-700 text-sm text-center leading-5">
+              New here?{" "}
+              <Text className="font-semibold">Create an account</Text>
+              {" "}to set up your organization.
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

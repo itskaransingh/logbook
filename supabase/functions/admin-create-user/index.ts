@@ -2,17 +2,18 @@
 
 /**
  * @fileoverview Admin user creation Edge Function
- * Public signup is disabled for Logbook; this function lets admins create
- * employee accounts. It authenticates the caller, verifies they have the
- * admin role, then creates the user with the service-role key.
+ * Creates Org Members with org-scoped emails (username@orgslug.logbook).
+ * Caller must be the org's Owner or a super_admin within the org.
  */
 
 import { createClient } from "npm:@supabase/supabase-js@^2.75.0";
 
 interface CreateUserRequest {
-  email: string;
-  password: string;
+  username: string;
   full_name: string;
+  password: string;
+  org_id: string;
+  role?: "employee" | "admin" | "super_admin";
 }
 
 interface ErrorResponse {
@@ -68,17 +69,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Not authenticated" } as ErrorResponse, 401);
     }
 
-    // Only admins may create users.
-    const { data: callerProfile } = await serviceClient
-      .from("profiles")
-      .select("role")
-      .eq("id", caller.id)
-      .single();
-
-    if (callerProfile?.role !== "admin") {
-      return jsonResponse({ error: "Admin access required" } as ErrorResponse, 403);
-    }
-
     let body: CreateUserRequest;
     try {
       body = await req.json();
@@ -89,20 +79,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const email = typeof body.email === "string" ? body.email.trim() : "";
+    const username = typeof body.username === "string"
+      ? body.username.trim().toLowerCase()
+      : "";
+    const fullName = typeof body.full_name === "string"
+      ? body.full_name.trim()
+      : "";
     const password = typeof body.password === "string" ? body.password : "";
-    const fullName =
-      typeof body.full_name === "string" ? body.full_name.trim() : "";
+    const orgId = typeof body.org_id === "string" ? body.org_id.trim() : "";
+    const role = body.role ?? "employee";
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // Validate inputs
+    if (!/^[a-z0-9]+$/.test(username) || username.length < 2 || username.length > 30) {
       return jsonResponse(
-        { error: "A valid email is required" } as ErrorResponse,
-        400
-      );
-    }
-    if (password.length < 6) {
-      return jsonResponse(
-        { error: "Password must be at least 6 characters" } as ErrorResponse,
+        { error: "Username must be 2–30 lowercase alphanumeric characters" } as ErrorResponse,
         400
       );
     }
@@ -112,15 +102,58 @@ Deno.serve(async (req: Request): Promise<Response> => {
         400
       );
     }
+    if (password.length < 6) {
+      return jsonResponse(
+        { error: "Password must be at least 6 characters" } as ErrorResponse,
+        400
+      );
+    }
+    if (!orgId) {
+      return jsonResponse(
+        { error: "org_id is required" } as ErrorResponse,
+        400
+      );
+    }
+    if (!["employee", "admin", "super_admin"].includes(role)) {
+      return jsonResponse(
+        { error: "Invalid role" } as ErrorResponse,
+        400
+      );
+    }
 
-    // New users are always employees (the profiles trigger applies the
-    // default role); admins are promoted only via SQL/Studio.
+    // Verify the org exists and caller is authorized (owner or super_admin in org)
+    const { data: org } = await serviceClient
+      .from("organizations")
+      .select("id, slug, owner_id")
+      .eq("id", orgId)
+      .single();
+
+    if (!org) {
+      return jsonResponse({ error: "Organization not found" } as ErrorResponse, 404);
+    }
+
+    const { data: callerProfile } = await serviceClient
+      .from("profiles")
+      .select("role, org_id")
+      .eq("id", caller.id)
+      .single();
+
+    const isOwner = org.owner_id === caller.id;
+    const isSuperAdminInOrg =
+      callerProfile?.role === "super_admin" && callerProfile?.org_id === orgId;
+
+    if (!isOwner && !isSuperAdminInOrg) {
+      return jsonResponse({ error: "Not authorized to add members to this organization" } as ErrorResponse, 403);
+    }
+
+    const email = `${username}@${org.slug}.logbook`;
+
     const { data, error: createError } =
       await serviceClient.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: { full_name: fullName },
+        user_metadata: { full_name: fullName, org_id: orgId },
       });
 
     if (createError) {
@@ -130,7 +163,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse(
         {
           error: isDuplicate
-            ? "A user with this email already exists"
+            ? `Username '${username}' is already taken in this organization`
             : "Failed to create user",
           details: createError.message,
         } as ErrorResponse,
@@ -138,8 +171,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // Set the role on the newly created profile (default is 'employee')
+    if (role !== "employee") {
+      await serviceClient
+        .from("profiles")
+        .update({ role })
+        .eq("id", data.user.id);
+    }
+
     return jsonResponse(
-      { user: { id: data.user.id, email: data.user.email } },
+      { user: { id: data.user.id, email, username, org_id: orgId } },
       200
     );
   } catch (error) {

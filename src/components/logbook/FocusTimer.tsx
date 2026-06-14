@@ -62,7 +62,7 @@ export default function FocusTimer({ tasks }: FocusTimerProps) {
 
       {endsAt != null ? (
         <View className="items-center">
-          <Text className="text-5xl font-bold text-blue-600 mb-2">
+          <Text className="text-5xl font-bold text-indigo-600 mb-2">
             {mm}:{ss}
           </Text>
           {focusTask && (
@@ -93,10 +93,10 @@ export default function FocusTimer({ tasks }: FocusTimerProps) {
             {PRESETS.map((p) => (
               <TouchableOpacity
                 key={p.label}
-                className="flex-1 bg-blue-50 border border-blue-200 rounded-lg py-3 active:bg-blue-100"
+                className="flex-1 bg-indigo-50 border border-indigo-100 rounded-lg py-3 active:bg-indigo-100"
                 onPress={() => start(p.minutes)}
               >
-                <Text className="text-blue-700 text-center font-medium">
+                <Text className="text-indigo-700 text-center font-medium">
                   {p.label}
                 </Text>
               </TouchableOpacity>
@@ -115,8 +115,8 @@ export default function FocusTimer({ tasks }: FocusTimerProps) {
                       key={t.id}
                       className={`rounded-full px-3 py-1.5 border ${
                         selected
-                          ? "bg-blue-600 border-blue-600"
-                          : "bg-white border-gray-300"
+                          ? "bg-indigo-600 border-indigo-600"
+                          : "bg-white border-gray-200"
                       }`}
                       onPress={() => setFocusTaskId(selected ? null : t.id)}
                     >

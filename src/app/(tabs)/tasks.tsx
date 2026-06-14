@@ -4,13 +4,16 @@
  * and overtime reason modal when completing over-estimate tasks.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useTasks } from "@/src/hooks/useTasks";
 import { useTaskTimer } from "@/src/hooks/useTaskTimer";
+import { useTaskComments } from "@/src/hooks/useTaskComments";
 import TaskItem from "@/src/components/logbook/TaskItem";
 import TaskForm from "@/src/components/logbook/TaskForm";
+import TaskComments from "@/src/components/logbook/TaskComments";
 import OvertimeReasonModal from "@/src/components/logbook/OvertimeReasonModal";
+import { ConfettiReward } from "@/src/components/logbook/ConfettiReward";
 import { Task, TaskStatus } from "@/src/types/logbook";
 
 const Section = ({ title, tasks, children }: {
@@ -21,8 +24,8 @@ const Section = ({ title, tasks, children }: {
   if (tasks.length === 0) return null;
   return (
     <View className="mb-5">
-      <Text className="text-sm font-semibold text-gray-500 uppercase mb-2">
-        {title} ({tasks.length})
+      <Text className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+        {title} · {tasks.length}
       </Text>
       {tasks.map((t) => (
         <React.Fragment key={t.id}>{children(t)}</React.Fragment>
@@ -36,16 +39,33 @@ export default function TasksScreen() {
     useTasks();
   const taskTimer = useTaskTimer();
   const [showForm, setShowForm] = useState(false);
+  const [expandedCommentTaskId, setExpandedCommentTaskId] = useState<string | null>(null);
+  const taskComments = useTaskComments(expandedCommentTaskId);
 
   // Overtime modal state
   const [overtimeTask, setOvertimeTask] = useState<Task | null>(null);
   const [overtimeSeconds, setOvertimeSeconds] = useState(0);
 
+  // Mini confetti when a task transitions pending_approval → approved
+  const [miniConfetti, setMiniConfetti] = useState(false);
+  const prevStatuses = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    const prev = prevStatuses.current;
+    const fired = tasks.some(
+      (t) => t.status === "approved" && prev[t.id] === "pending_approval"
+    );
+    if (fired) setMiniConfetti(true);
+    prevStatuses.current = Object.fromEntries(tasks.map((t) => [t.id, t.status]));
+  }, [tasks]);
+
   const sections = useMemo(
     () => ({
       inProgress: tasks.filter((t) => t.status === "in_progress"),
       todo: tasks.filter((t) => t.status === "todo"),
-      done: tasks.filter((t) => t.status === "done"),
+      pendingApproval: tasks.filter((t) => t.status === "pending_approval"),
+      needsChanges: tasks.filter((t) => t.status === "needs_changes"),
+      approved: tasks.filter((t) => t.status === "approved" || t.status === "done"),
     }),
     [tasks]
   );
@@ -53,14 +73,17 @@ export default function TasksScreen() {
   const handleSetStatus = async (task: Task, status: TaskStatus) => {
     const tracked = taskTimer.totalSeconds(task.id);
 
-    // Stop timer when completing
+    // Stop timer when submitting for approval
+    if (status === "pending_approval" && taskTimer.runningTaskIds.has(task.id)) {
+      await taskTimer.stopTimer(task.id);
+    }
+    // Legacy done path (overtime modal)
     if (status === "done" && taskTimer.runningTaskIds.has(task.id)) {
       await taskTimer.stopTimer(task.id);
     }
 
     const result = await setStatus(task, status, tracked);
     if (result.needsOvertimeReason) {
-      // Stop timer if still running
       if (taskTimer.runningTaskIds.has(task.id)) {
         await taskTimer.stopTimer(task.id);
       }
@@ -69,19 +92,34 @@ export default function TasksScreen() {
     }
   };
 
-  const renderTaskItem = (task: Task, opts?: { showDelete?: boolean }) => (
-    <TaskItem
-      task={task}
-      onSetStatus={handleSetStatus}
-      onDelete={opts?.showDelete !== false ? deleteTask : undefined}
-      isTimerRunning={taskTimer.runningTaskIds.has(task.id)}
-      trackedSeconds={taskTimer.totalSeconds(task.id)}
-      onStartTimer={taskTimer.startTimer}
-      onStopTimer={taskTimer.stopTimer}
-    />
+  const renderTaskWithComments = (task: Task, opts?: {
+    showDelete?: boolean;
+    showStatus?: boolean;
+    showTimers?: boolean;
+  }) => (
+    <View>
+      <TaskItem
+        task={task}
+        onSetStatus={opts?.showStatus !== false ? handleSetStatus : undefined}
+        onDelete={opts?.showDelete !== false ? deleteTask : undefined}
+        isTimerRunning={taskTimer.runningTaskIds.has(task.id)}
+        trackedSeconds={taskTimer.totalSeconds(task.id)}
+        onStartTimer={opts?.showTimers !== false ? taskTimer.startTimer : undefined}
+        onStopTimer={opts?.showTimers !== false ? taskTimer.stopTimer : undefined}
+      />
+      <View className="ml-8 -mt-1 mb-1">
+        <TaskComments
+          comments={expandedCommentTaskId === task.id ? taskComments.comments : []}
+          onAdd={taskComments.addComment}
+          canComment={true}
+          onExpand={() => setExpandedCommentTaskId(task.id)}
+        />
+      </View>
+    </View>
   );
 
   return (
+    <View className="flex-1">
     <ScrollView className="flex-1 bg-gray-50">
       <View className="px-4 py-6 max-w-2xl w-full self-center">
         <View className="flex-row items-center justify-between mb-4">
@@ -89,7 +127,7 @@ export default function TasksScreen() {
             Today's Tasks
           </Text>
           <TouchableOpacity
-            className="bg-blue-600 rounded-lg py-2 px-4 active:bg-blue-700"
+            className="bg-indigo-600 rounded-lg py-2 px-4 active:bg-indigo-700"
             onPress={() => setShowForm((s) => !s)}
           >
             <Text className="text-white font-medium">
@@ -118,31 +156,33 @@ export default function TasksScreen() {
         )}
 
         {!loading && tasks.length === 0 && upcoming.length === 0 && (
-          <View className="bg-white rounded-2xl border border-gray-100 p-8">
-            <Text className="text-gray-400 text-center">
-              No tasks yet. Add one to plan your day — unfinished tasks roll
-              over to tomorrow automatically.
+          <View className="bg-white rounded-2xl border border-gray-100 p-8 items-center">
+            <Text className="text-sm font-semibold text-gray-700 mb-1 text-center">
+              No tasks yet
+            </Text>
+            <Text className="text-sm text-gray-400 text-center leading-5">
+              Add one to plan your day — unfinished tasks roll over to tomorrow automatically.
             </Text>
           </View>
         )}
 
         <Section title="In Progress" tasks={sections.inProgress}>
-          {(t) => renderTaskItem(t)}
+          {(t) => renderTaskWithComments(t)}
         </Section>
         <Section title="To Do" tasks={sections.todo}>
-          {(t) => renderTaskItem(t)}
+          {(t) => renderTaskWithComments(t)}
         </Section>
-        <Section title="Done Today" tasks={sections.done}>
-          {(t) => (
-            <TaskItem
-              task={t}
-              onSetStatus={handleSetStatus}
-              trackedSeconds={taskTimer.totalSeconds(t.id)}
-            />
-          )}
+        <Section title="Pending Approval" tasks={sections.pendingApproval}>
+          {(t) => renderTaskWithComments(t, { showStatus: false, showTimers: false })}
+        </Section>
+        <Section title="Needs Changes" tasks={sections.needsChanges}>
+          {(t) => renderTaskWithComments(t)}
+        </Section>
+        <Section title="Approved Today" tasks={sections.approved}>
+          {(t) => renderTaskWithComments(t, { showDelete: false, showStatus: false, showTimers: false })}
         </Section>
         <Section title="Tomorrow's Plan" tasks={upcoming}>
-          {(t) => <TaskItem task={t} onDelete={deleteTask} />}
+          {(t) => renderTaskWithComments(t, { showStatus: false, showTimers: false })}
         </Section>
 
         {/* Overtime reason modal */}
@@ -161,5 +201,13 @@ export default function TasksScreen() {
         )}
       </View>
     </ScrollView>
+
+    {/* Mini confetti when a task gets approved */}
+    <ConfettiReward
+      visible={miniConfetti}
+      size="mini"
+      onDone={() => setMiniConfetti(false)}
+    />
+    </View>
   );
 }

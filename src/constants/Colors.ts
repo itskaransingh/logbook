@@ -1,13 +1,13 @@
-const tintColorLight = '#2f95dc';
+const tintColorLight = '#4f46e5'; // indigo-600
 const tintColorDark = '#fff';
 
 export default {
-  link: '#2e78b7',
+  link: '#4f46e5',
   light: {
-    text: '#000',
-    background: '#fff',
+    text: '#111827',
+    background: '#f9fafb',
     tint: tintColorLight,
-    tabIconDefault: '#ccc',
+    tabIconDefault: '#9ca3af',
     tabIconSelected: tintColorLight,
   },
   dark: {

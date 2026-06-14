@@ -26,16 +26,18 @@ const workedFromDaily = (s: DailySessionSummary): number =>
   s.total_seconds - s.break_seconds;
 
 export function useEmployees() {
-  const { session } = useSession();
+  const { session, currentOrg } = useSession();
   const selfId = session?.user.id;
+  const orgId = currentOrg?.id;
 
   const [employees, setEmployees] = useState<EmployeeOverview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!orgId) return;
     const [profilesRes, weekRes] = await Promise.all([
-      supabase.from("profiles").select("*").order("full_name"),
+      supabase.from("profiles").select("*").eq("org_id", orgId).order("full_name"),
       supabase
         .from("daily_session_summaries")
         .select("*")
@@ -65,7 +67,7 @@ export function useEmployees() {
     setEmployees(overview);
     setError(null);
     setLoading(false);
-  }, [selfId]);
+  }, [selfId, orgId]);
 
   useFocusEffect(
     useCallback(() => {

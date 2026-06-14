@@ -39,7 +39,7 @@ export default function NotFoundScreen() {
 
         {/* Action Button */}
         <Link href="/" asChild>
-          <TouchableOpacity className="bg-blue-600 rounded-lg py-4 px-8 w-full max-w-sm active:bg-blue-700">
+          <TouchableOpacity className="bg-indigo-600 rounded-xl py-4 px-8 w-full max-w-sm active:bg-indigo-700">
             <Text className="text-white font-semibold text-center">
               🏠 Return to Home
             </Text>

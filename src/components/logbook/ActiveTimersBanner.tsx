@@ -17,7 +17,7 @@ interface ActiveTimersBannerProps {
 
 /** Returns a color class based on how close we are to the estimate. */
 function urgencyColor(task: Task, elapsed: number): string {
-  if (!task.estimated_minutes) return "text-blue-600";
+  if (!task.estimated_minutes) return "text-indigo-600";
   const ratio = elapsed / (task.estimated_minutes * 60);
   if (ratio >= 1) return "text-red-600";
   if (ratio >= 0.8) return "text-amber-600";
@@ -25,7 +25,7 @@ function urgencyColor(task: Task, elapsed: number): string {
 }
 
 function urgencyBg(task: Task, elapsed: number): string {
-  if (!task.estimated_minutes) return "bg-blue-50 border-blue-200";
+  if (!task.estimated_minutes) return "bg-indigo-50 border-indigo-200";
   const ratio = elapsed / (task.estimated_minutes * 60);
   if (ratio >= 1) return "bg-red-50 border-red-200";
   if (ratio >= 0.8) return "bg-amber-50 border-amber-200";
@@ -53,8 +53,8 @@ export default function ActiveTimersBanner({
 
   return (
     <View className="mb-4">
-      <Text className="text-sm font-semibold text-gray-500 uppercase mb-2">
-        ▶ Active Timers ({runningTasks.length})
+      <Text className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+        Active Timers · {runningTasks.length}
       </Text>
       {runningTasks.map((task) => {
         const elapsed = totalSeconds(task.id);

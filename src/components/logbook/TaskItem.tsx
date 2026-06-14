@@ -16,15 +16,19 @@ const PRIORITY_STYLES = {
   low: "bg-gray-100 text-gray-600",
 } as const;
 
-const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
+// Employee-facing transitions only. pending_approval/approved/done are locked.
+const NEXT_STATUS: Partial<Record<TaskStatus, TaskStatus>> = {
   todo: "in_progress",
-  in_progress: "done",
-  done: "todo",
+  in_progress: "pending_approval",
+  needs_changes: "in_progress", // move back to work after changes requested
 };
 
 const STATUS_ICON: Record<TaskStatus, string> = {
   todo: "○",
   in_progress: "◐",
+  pending_approval: "⏳",
+  needs_changes: "⚠",
+  approved: "●",
   done: "●",
 };
 
@@ -43,7 +47,7 @@ interface TaskItemProps {
 }
 
 function urgencyColor(task: Task, elapsed: number): string {
-  if (!task.estimated_minutes) return "text-blue-600";
+  if (!task.estimated_minutes) return "text-indigo-600";
   const ratio = elapsed / (task.estimated_minutes * 60);
   if (ratio >= 1) return "text-red-600";
   if (ratio >= 0.8) return "text-amber-600";
@@ -60,8 +64,10 @@ export default function TaskItem({
   onStopTimer,
 }: TaskItemProps) {
   const assigned = task.created_by !== task.user_id;
-  const carriedOver =
-    task.status !== "done" && task.planned_for < localWorkDate();
+  const isActive = task.status === "todo" || task.status === "in_progress" || task.status === "needs_changes";
+  const isLocked = task.status === "pending_approval" || task.status === "approved" || task.status === "done";
+  const carriedOver = isActive && task.planned_for < localWorkDate();
+  const nextStatus = NEXT_STATUS[task.status];
   const hasEstimate = task.estimated_minutes != null;
   const elapsed = trackedSeconds ?? 0;
 
@@ -77,15 +83,19 @@ export default function TaskItem({
     <View className="bg-white border border-gray-200 rounded-lg p-3 mb-2 flex-row items-start">
       <TouchableOpacity
         className="pr-3 pt-0.5"
-        onPress={onSetStatus ? () => onSetStatus(task, NEXT_STATUS[task.status]) : undefined}
-        disabled={!onSetStatus}
+        onPress={onSetStatus && nextStatus ? () => onSetStatus(task, nextStatus) : undefined}
+        disabled={!onSetStatus || !nextStatus}
       >
         <Text
           className={`text-xl ${
-            task.status === "done"
+            task.status === "approved" || task.status === "done"
               ? "text-green-600"
               : task.status === "in_progress"
-              ? "text-blue-600"
+              ? "text-indigo-600"
+              : task.status === "pending_approval"
+              ? "text-amber-500"
+              : task.status === "needs_changes"
+              ? "text-red-500"
               : "text-gray-400"
           }`}
         >
@@ -96,7 +106,7 @@ export default function TaskItem({
       <View className="flex-1">
         <Text
           className={`text-base ${
-            task.status === "done"
+            task.status === "approved" || task.status === "done"
               ? "text-gray-400 line-through"
               : "text-gray-900"
           }`}
@@ -109,8 +119,16 @@ export default function TaskItem({
           </Text>
         ) : null}
 
+        {/* Pending approval / needs changes badges */}
+        {task.status === "pending_approval" && (
+          <Text className="text-xs text-amber-600 mt-1">Awaiting approval…</Text>
+        )}
+        {task.status === "needs_changes" && (
+          <Text className="text-xs text-red-600 mt-1">Changes requested — tap ⚠ to resume</Text>
+        )}
+
         {/* Live timer display */}
-        {(isTimerRunning || elapsed > 0) && task.status !== "done" && (
+        {(isTimerRunning || elapsed > 0) && isActive && (
           <View className="flex-row items-center gap-2 mt-1">
             <Text
               className={`text-xs font-mono font-medium ${urgencyColor(
@@ -152,8 +170,8 @@ export default function TaskItem({
             </View>
           )}
           {carriedOver && (
-            <View className="rounded-full px-2 py-0.5 bg-blue-100">
-              <Text className="text-xs font-medium text-blue-700">
+            <View className="rounded-full px-2 py-0.5 bg-indigo-50">
+              <Text className="text-xs font-medium text-indigo-600">
                 Carried over
               </Text>
             </View>
@@ -170,7 +188,7 @@ export default function TaskItem({
 
       {/* Timer + delete controls */}
       <View className="flex-col items-center gap-1 pl-2">
-        {task.status !== "done" && onStartTimer && onStopTimer && (
+        {isActive && onStartTimer && onStopTimer && (
           <TouchableOpacity
             className={`rounded-lg px-2 py-1.5 ${
               isTimerRunning

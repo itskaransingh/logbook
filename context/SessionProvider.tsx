@@ -1,22 +1,21 @@
-/**
- * @fileoverview Session Context Provider
- * Manages authentication state plus the signed-in user's Logbook profile
- * (including role), so the router and screens can gate on admin/employee.
- */
-
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { supabase } from "../lib/supabase";
 import { Session } from "@supabase/supabase-js";
-import { Profile } from "../src/types/logbook";
+import { Profile, Organization } from "../src/types/logbook";
 
 interface SessionContextType {
-  /** Current user session or null if not authenticated */
   session: Session | null;
-  /** The signed-in user's profile row (null while signed out) */
   profile: Profile | null;
-  /** Convenience flag for role gating */
   isAdmin: boolean;
-  /** Loading until both session and profile have resolved */
+  isSuperAdmin: boolean;
+  /** True when signed in with a personal email (org_id IS NULL on profile) */
+  isPlatformUser: boolean;
+  /** The org the user is currently operating in. Null until org is selected. */
+  currentOrg: Organization | null;
+  /** All orgs owned by this Platform User. Empty for Org Members. */
+  orgs: Organization[];
+  /** Enter one of the Platform User's orgs. */
+  selectOrg: (org: Organization) => void;
   loading: boolean;
 }
 
@@ -24,6 +23,11 @@ const SessionContext = createContext<SessionContextType>({
   session: null,
   profile: null,
   isAdmin: false,
+  isSuperAdmin: false,
+  isPlatformUser: false,
+  currentOrg: null,
+  orgs: [],
+  selectOrg: () => {},
   loading: true,
 });
 
@@ -34,37 +38,59 @@ export const SessionProvider = ({
 }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
+  const [orgs, setOrgs] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const applySession = async (next: Session | null) => {
+    if (next?.user) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", next.user.id)
+        .single();
+
+      const p = (profileData as Profile) ?? null;
+      setProfile(p);
+
+      if (p && p.org_id === null) {
+        // Platform User — fetch their owned orgs
+        const { data: orgData } = await supabase
+          .from("organizations")
+          .select("*")
+          .eq("owner_id", next.user.id)
+          .order("created_at");
+        setOrgs((orgData as Organization[]) ?? []);
+        setCurrentOrg(null);
+      } else if (p && p.org_id) {
+        // Org Member — fetch their single org
+        const { data: orgData } = await supabase
+          .from("organizations")
+          .select("*")
+          .eq("id", p.org_id)
+          .single();
+        setCurrentOrg((orgData as Organization) ?? null);
+        setOrgs([]);
+      }
+    } else {
+      setProfile(null);
+      setCurrentOrg(null);
+      setOrgs([]);
+    }
+    setSession(next);
+    setLoading(false);
+  };
 
   useEffect(() => {
     let cancelled = false;
 
-    // Resolve the profile (role) before clearing loading, so the router
-    // never renders with an unknown role.
-    const applySession = async (next: Session | null) => {
-      if (next?.user) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", next.user.id)
-          .single();
-        if (cancelled) return;
-        setProfile((data as Profile) ?? null);
-      } else {
-        setProfile(null);
-      }
-      if (cancelled) return;
-      setSession(next);
-      setLoading(false);
-    };
-
     supabase.auth.getSession().then(({ data: { session } }) => {
-      applySession(session);
+      if (!cancelled) applySession(session);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        applySession(session);
+        if (!cancelled) applySession(session);
       }
     );
 
@@ -74,21 +100,35 @@ export const SessionProvider = ({
     };
   }, []);
 
+  const isPlatformUser = profile?.org_id === null && profile !== null;
+  // Platform User who has entered one of their orgs is the Owner — full super_admin powers
+  const isOwner =
+    isPlatformUser &&
+    !!currentOrg &&
+    currentOrg.owner_id === session?.user?.id;
+
   return (
     <SessionContext.Provider
-      value={{ session, profile, isAdmin: profile?.role === "admin", loading }}
+      value={{
+        session,
+        profile,
+        isAdmin:
+          isOwner ||
+          profile?.role === "admin" ||
+          profile?.role === "super_admin",
+        isSuperAdmin: isOwner || profile?.role === "super_admin",
+        isPlatformUser,
+        currentOrg,
+        orgs,
+        selectOrg: setCurrentOrg,
+        loading,
+      }}
     >
       {children}
     </SessionContext.Provider>
   );
 };
 
-/**
- * Access session state, the user's profile, and role flags.
- *
- * @example
- * const { session, profile, isAdmin, loading } = useSession();
- */
 export const useSession = () => {
   return useContext(SessionContext);
 };
